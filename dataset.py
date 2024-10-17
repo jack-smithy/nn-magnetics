@@ -3,6 +3,7 @@ from typing import List, Tuple
 
 import numpy as np
 import torch
+from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset
 
@@ -47,12 +48,28 @@ def _make_train_test_split(path: Path) -> List[np.ndarray]:
     # sanity check to make sure they are the same length
     assert input_data.shape[0] == output_data.shape[0]
 
-    return train_test_split(
+    # Step 1: Split the data into training and test sets
+    X_train, X_test, y_train, y_test = train_test_split(
         input_data,
         output_data,
         test_size=0.3,
         shuffle=True,
     )
+
+    # Step 2: Scale the data using StandardScaler (you can also use MinMaxScaler)
+    scaler_X = StandardScaler()
+    scaler_y = StandardScaler()
+
+    # Fit the scaler on the training data and transform both the training and test data
+    X_train_scaled = scaler_X.fit_transform(X_train)
+    X_test_scaled = scaler_X.transform(X_test)
+
+    # Fit and scale the output data (y) separately if needed
+    y_train_scaled = scaler_y.fit_transform(y_train)
+    y_test_scaled = scaler_y.transform(y_test)
+
+    # Now you can return the scaled data
+    return [X_train_scaled, X_test_scaled, y_train_scaled, y_test_scaled]
 
 
 def make_train_test_split(path: Path | str) -> List[np.ndarray]:

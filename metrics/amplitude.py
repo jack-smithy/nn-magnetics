@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 
 def relative_amplitude_error(v1, v2):
@@ -17,6 +18,23 @@ def relative_amplitude_error(v1, v2):
     v2_norm = np.linalg.norm(v2, axis=-1)
 
     return (v2_norm - v1_norm) / v1_norm * 100
+
+
+def relative_amplitude_error_torch(v1: torch.Tensor, v2: torch.Tensor) -> np.ndarray:
+    v1_norm = torch.linalg.norm(v1, dim=-1)
+    v2_norm = torch.linalg.norm(v2, dim=-1)
+
+    rel_error = torch.mean(
+        torch.abs(
+            torch.mul(
+                torch.div(torch.sub(v2_norm, v1_norm), v1_norm),
+                torch.tensor([100.0]),
+            ),
+        ),
+        dim=-1,
+    ).numpy(force=True)
+
+    return rel_error
 
 
 if __name__ == "__main__":
