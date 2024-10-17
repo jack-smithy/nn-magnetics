@@ -5,9 +5,9 @@ from torch import nn
 from torch.optim.adam import Adam
 from torch.utils.data import DataLoader
 
-from .dataset import DemagData, make_train_test_split
-from .model import Network
-from .utils import get_device
+from dataset import DemagData, make_train_test_split
+from model import Network
+from utils import get_device
 
 DEVICE = get_device()
 
@@ -33,7 +33,7 @@ model = Network(
 criterion = nn.MSELoss()
 opt = Adam(params=model.parameters(), lr=1e-5)
 
-EPOCHS = 20
+EPOCHS = 3
 
 for ep in range(EPOCHS):
     epoch_train_loss = []
