@@ -1,7 +1,7 @@
 import datetime
 import json
 from typing import Tuple
-
+import os
 import numpy as np
 import torch
 import tqdm
@@ -20,9 +20,10 @@ from plotting import plot
 from utils import get_device
 
 DEVICE = get_device(use_accelerators=False)
-EPOCHS = 250
+EPOCHS = 3
 LEARNING_RATE = 1e-4
 BATCH_SIZE = 32
+SAVE_PATH = f"results/{str(datetime.datetime.now())}"
 
 STATS = {
     "train_loss": [],
@@ -114,7 +115,9 @@ for ep in tqdm.tqdm(range(EPOCHS), unit="epoch"):
     STATS["angle_error"].append(epoch_angle_errors)
     STATS["amplitude_error"].append(epoch_amp_errors)
 
-with open(f"results/data_{datetime.datetime.now()}.json", "w+") as f:
+os.makedirs(SAVE_PATH)
+
+with open(f"{SAVE_PATH}/stats.json", "w+") as f:
     json.dump(STATS, f)
 
-plot(STATS)
+plot(STATS, f"{SAVE_PATH}/loss.png")

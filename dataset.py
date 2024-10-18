@@ -32,8 +32,8 @@ def _make_train_test_split(path: Path) -> List[np.ndarray]:
                 np.ones(length) * data["a"],
                 np.ones(length) * data["b"],
                 np.ones(length) * data["chi"],
-                grid[:, 0] / data["a"],
-                grid[:, 1] / data["b"],
+                grid[:, 0],
+                grid[:, 1],
                 grid[:, 2],
             )
         ).T
