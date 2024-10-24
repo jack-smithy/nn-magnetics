@@ -17,7 +17,7 @@ def relative_amplitude_error(v1, v2):
     v1_norm = np.linalg.norm(v1, axis=-1)
     v2_norm = np.linalg.norm(v2, axis=-1)
 
-    return (v2_norm - v1_norm) / v1_norm * 100
+    return np.abs((v2_norm - v1_norm) / v1_norm * 100)
 
 
 def relative_amplitude_error_torch(v1: torch.Tensor, v2: torch.Tensor) -> np.ndarray:

@@ -1,123 +1,101 @@
-import datetime
-import json
 from typing import Tuple
-import os
+
 import numpy as np
 import torch
-import tqdm
 from torch import nn
-from torch.optim.adam import Adam
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 
-from dataset import DemagData, make_train_test_split
-from metrics import (
-    angle_error_torch,
-    relative_amplitude_error_torch,
-)
-from model import model_original
-from plotting import plot
-from utils import get_device
+from metrics import angle_error, relative_amplitude_error
 
-DEVICE = get_device(use_accelerators=False)
-EPOCHS = 3
-LEARNING_RATE = 1e-4
-BATCH_SIZE = 32
-SAVE_PATH = f"results/{str(datetime.datetime.now())}"
 
-STATS = {
-    "train_loss": [],
-    "test_loss": [],
-    "angle_error": [],
-    "amplitude_error": [],
-    "params": {
-        "lr": LEARNING_RATE,
-        "epochs": EPOCHS,
-        "batch_size": BATCH_SIZE,
-    },
-}
+def calculate_metrics(B: torch.Tensor, B_pred: torch.Tensor):
+    B_demag = B[..., :3].numpy()
+    B_ana = B[..., 3:].numpy()
+
+    batch_angle_errors = angle_error(B_demag, B_pred.numpy() * B_ana)
+    batch_amplitude_errors = relative_amplitude_error(B_demag, B_pred.numpy() * B_ana)
+    return batch_angle_errors, batch_amplitude_errors
+
+
+def calculate_metrics_baseline(B: np.ndarray) -> Tuple[np.ndarray, ...]:
+    B_demag = B[..., :3]
+    B_ana = B[..., 3:]
+
+    angle_errors = angle_error(B_ana, B_demag)
+    amplitude_errors = relative_amplitude_error(B_ana, B_demag)
+
+    return angle_errors, amplitude_errors
 
 
 def train_one_epoch(
     model: nn.Module,
     dataloader: DataLoader,
-    criterion: nn.L1Loss,
+    criterion: nn.Module,
     optimizer: Optimizer,
 ) -> float:
     model.train()
     batch_losses = []
 
-    loss = torch.inf
     for X, y in dataloader:
         y_pred = model(X)
         loss = criterion(y, y_pred)
+
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        batch_losses.append(loss.numpy(force=True))
 
-    return np.mean(batch_losses, axis=-1)
+        batch_losses.append(loss.item())
+
+    return np.mean(batch_losses, axis=0)
 
 
 def test_one_epoch(
     model: nn.Module,
     dataloader: DataLoader,
-    criterion: nn.L1Loss,
-) -> Tuple[float, float, float]:
+    criterion: nn.Module,
+) -> float:
     model.eval()
     batch_losses = []
-    batch_angle_errors = []
-    batch_amp_errors = []
-    for X, y in dataloader:
-        with torch.no_grad():
-            y_pred = model(X)
 
-            batch_losses.append(criterion(y, y_pred).numpy(force=True))
-            batch_angle_errors.append(angle_error_torch(y, y_pred))
-            batch_amp_errors.append(relative_amplitude_error_torch(y, y_pred))
+    with torch.no_grad():
+        for X, B in dataloader:
+            B_pred = model(X)
+            loss = criterion(B, B_pred)
+            batch_losses.append(loss.item())
 
-    return (
-        np.mean(batch_losses, axis=-1),
-        np.mean(batch_angle_errors, axis=-1),
-        np.mean(batch_amp_errors, axis=-1),
-    )
+    return np.mean(batch_losses, axis=0)
 
 
-X_train, X_test, y_train, y_test = make_train_test_split("./data")
+def validate(data, model, criterion):
+    _, X_test, _, B_test = data
+    model.eval()
 
-train_dataset = DemagData(X=X_train, y=y_train, device=DEVICE)
-test_dataset = DemagData(X=X_test, y=y_test, device=DEVICE)
+    losses = []
+    avg_angle_errors_baseline = []
+    avg_amp_errors_baseline = []
+    avg_angle_errors = []
+    avg_amp_errors = []
 
-train_dataloader = DataLoader(dataset=train_dataset, batch_size=BATCH_SIZE)
-test_dataloader = DataLoader(dataset=test_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    with torch.no_grad():
+        for X, B in zip(torch.from_numpy(X_test), torch.from_numpy(B_test)):
+            B_pred = model(X)
+            loss = criterion(B, B_pred)
+            losses.append(loss.item())
 
-criterion = nn.L1Loss()
+            angle_errs_baseline, amp_errs_baseline = calculate_metrics_baseline(
+                B.numpy()
+            )
+            avg_angle_errors_baseline.append(np.mean(angle_errs_baseline, axis=0))
+            avg_amp_errors_baseline.append(np.mean(amp_errs_baseline, axis=0))
 
-opt = Adam(params=model_original.parameters(), lr=LEARNING_RATE)
+            angle_errs, amp_errs = calculate_metrics(B, B_pred)
+            avg_angle_errors.append(np.mean(angle_errs, axis=0))
+            avg_amp_errors.append(np.mean(amp_errs, axis=0))
 
-
-for ep in tqdm.tqdm(range(EPOCHS), unit="epoch"):
-    epoch_train_losses = train_one_epoch(
-        model=model_original,
-        dataloader=train_dataloader,
-        criterion=criterion,
-        optimizer=opt,
-    )
-
-    epoch_test_losses, epoch_angle_errors, epoch_amp_errors = test_one_epoch(
-        model=model_original,
-        dataloader=test_dataloader,
-        criterion=criterion,
-    )
-
-    STATS["test_loss"].append(epoch_test_losses)
-    STATS["train_loss"].append(epoch_train_losses)
-    STATS["angle_error"].append(epoch_angle_errors)
-    STATS["amplitude_error"].append(epoch_amp_errors)
-
-os.makedirs(SAVE_PATH)
-
-with open(f"{SAVE_PATH}/stats.json", "w+") as f:
-    json.dump(STATS, f)
-
-plot(STATS, f"{SAVE_PATH}/loss.png")
+    return {
+        "angle_errors_baseline": avg_angle_errors_baseline,
+        "amp_errors_baseline": avg_amp_errors_baseline,
+        "angle_errors": avg_angle_errors,
+        "amp_errors": avg_amp_errors,
+    }
