@@ -1,10 +1,10 @@
 from pathlib import Path
-from typing import List, Tuple
+from typing import Tuple
 from enum import Enum
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 import torch
-from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset
 
 _DTYPES = {
@@ -19,9 +19,51 @@ class ChiMode(Enum):
     ANISOTROPIC = "anisotropic"
 
 
-def get_data(path: Path, chi_mode: ChiMode) -> Tuple[np.ndarray, ...]:
+def get_data_parallel(path: str | Path, chi_mode: ChiMode) -> Tuple[np.ndarray, ...]:
+    if isinstance(path, str):
+        path = Path(path)
+
+    # initialize empty lists for data
+    input_dim = 6
+    output_dim = 6
+
+    input_data_list = []
+    output_data_list = []
+    n_magnets = len([f for f in path.iterdir()])
+
+    # define a function to load and process one file
+    def process_file(file):
+        data = np.load(file)
+        return get_one_magnet(chi_mode, data)
+
+    # use ThreadPoolExecutor to parallelize file processing
+    with ThreadPoolExecutor() as executor:
+        futures = [executor.submit(process_file, file) for file in path.iterdir()]
+
+        for future in as_completed(futures):
+            input_data_new, output_data_new = future.result()
+            input_data_list.append(input_data_new)
+            output_data_list.append(output_data_new)
+
+    # concatenate all input and output data arrays
+    input_data = np.concatenate(input_data_list)
+    output_data = np.concatenate(output_data_list)
+
+    # sanity check to make sure they are the same length
+    assert input_data.shape[0] == output_data.shape[0]
+
+    return (
+        input_data.reshape(n_magnets, -1, input_dim),
+        output_data.reshape(n_magnets, -1, output_dim),
+    )
+
+
+def get_data(path: str | Path, chi_mode: ChiMode) -> Tuple[np.ndarray, ...]:
+    if isinstance(path, str):
+        path = Path(path)
+
     # initialise empty arrays for data
-    input_dim = 6 if chi_mode == ChiMode.ISOTROPIC else 7
+    input_dim = 6
     output_dim = 6
 
     input_data = np.empty((0, input_dim))
@@ -31,40 +73,7 @@ def get_data(path: Path, chi_mode: ChiMode) -> Tuple[np.ndarray, ...]:
     # iterate over all the files in the directory
     for file in path.iterdir():
         data = np.load(file)
-        grid = data["grid"]
-        length = len(grid)
-
-        # select relevant parts of the input data
-        # in this case, magnet dims, susceptibility, and point in space
-        if chi_mode == ChiMode.ANISOTROPIC:
-            input_data_new = np.vstack(
-                (
-                    np.ones(length) * data["a"],
-                    np.ones(length) * data["b"],
-                    np.ones(length) * data["chi_perp"],
-                    np.ones(length) * data["chi_long"],
-                    grid[:, 0] / data["a"],
-                    grid[:, 1] / data["b"],
-                    grid[:, 2],
-                )
-            ).T
-        else:
-            input_data_new = np.vstack(
-                (
-                    np.ones(length) * data["a"],
-                    np.ones(length) * data["b"],
-                    np.ones(length) * data["chi"],
-                    grid[:, 0] / data["a"],
-                    grid[:, 1] / data["b"],
-                    grid[:, 2],
-                )
-            ).T
-
-        # get the corresponding labels
-        output_data_new = np.concatenate(
-            (data["grid_field"], data["grid_field_ana"]),
-            axis=1,
-        )
+        input_data_new, output_data_new = get_one_magnet(chi_mode, data)
 
         # concat these to the data arrays
         input_data = np.concatenate((input_data, input_data_new))
@@ -79,28 +88,14 @@ def get_data(path: Path, chi_mode: ChiMode) -> Tuple[np.ndarray, ...]:
     )
 
 
-def _make_train_test_split(
-    path: Path,
-    test_size: float,
-    val_size: float,
-    chi_mode: ChiMode,
-) -> List[np.ndarray]:
-    # initialise empty arrays for data
-    input_dim = 6 if chi_mode == ChiMode.ISOTROPIC else 7
-    output_dim = 6
+def get_one_magnet(chi_mode, data):
+    grid = data["grid"]
+    length = len(grid)
 
-    input_data = np.empty((0, input_dim))
-    output_data = np.empty((0, output_dim))
-
-    # iterate over all the files in the directory
-    for file in path.iterdir():
-        data = np.load(file)
-        grid = data["grid"]
-        length = len(grid)
-
-        # select relevant parts of the input data
-        # in this case, magnet dims, susceptibility, and point in space
-        if chi_mode == ChiMode.ANISOTROPIC:
+    # select relevant parts of the input data
+    # in this case, magnet dims, susceptibility, and point in space
+    match chi_mode.value:
+        case ChiMode.ANISOTROPIC.value:
             input_data_new = np.vstack(
                 (
                     np.ones(length) * data["a"],
@@ -112,7 +107,7 @@ def _make_train_test_split(
                     grid[:, 2],
                 )
             ).T
-        else:
+        case ChiMode.ISOTROPIC.value:
             input_data_new = np.vstack(
                 (
                     np.ones(length) * data["a"],
@@ -123,69 +118,16 @@ def _make_train_test_split(
                     grid[:, 2],
                 )
             ).T
+        case _:
+            raise ValueError(f"Something gone wrong: {chi_mode.value}")
 
         # get the corresponding labels
-        output_data_new = np.concatenate(
-            (data["grid_field"], data["grid_field_ana"]),
-            axis=1,
-        )
-
-        # concat these to the data arrays
-        input_data = np.concatenate((input_data, input_data_new))
-        output_data = np.concatenate((output_data, output_data_new))
-
-    # sanity check to make sure they are the same length
-    assert input_data.shape[0] == output_data.shape[0]
-
-    # Step 1: Split the data into training and test sets
-    X_train, X_val_test, y_train, y_val_test = train_test_split(
-        input_data,
-        output_data,
-        test_size=(val_size + test_size),
-        shuffle=False,
+    output_data_new = np.concatenate(
+        (data["grid_field"], data["grid_field_reduced"]),
+        axis=1,
     )
 
-    X_val, X_test, y_val, y_test = train_test_split(
-        X_val_test,
-        y_val_test,
-        test_size=(1 - (val_size / (val_size + test_size))),
-        shuffle=False,
-    )
-
-    return [
-        X_train,
-        X_test,
-        X_val,
-        y_train,
-        y_test,
-        y_val,
-    ]
-
-
-def make_train_test_split(
-    path: Path | str,
-    chi_mode: ChiMode,
-    train_size: float = 0.5,
-    test_size: float = 0.3,
-    val_size: float = 0.2,
-) -> List[np.ndarray]:
-    if isinstance(path, str):
-        path = Path(path)
-
-    if not np.isclose(train_size + test_size + val_size, 1):
-        raise ValueError(
-            f"Splits do not add up to 1: Sum={train_size + test_size + val_size}"
-        )
-
-    if not path.is_dir():
-        raise ValueError(f"Path {path} is not a directory")
-
-    return _make_train_test_split(
-        path=path,
-        test_size=test_size,
-        val_size=val_size,
-        chi_mode=chi_mode,
-    )
+    return input_data_new, output_data_new
 
 
 class DemagData(Dataset):

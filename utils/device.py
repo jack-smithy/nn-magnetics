@@ -10,12 +10,3 @@ def get_device(use_accelerators: bool = True) -> str:
         return "mps"
 
     return "cpu"
-
-
-def main():
-    device = get_device()
-    print(device)
-
-
-if __name__ == "__main__":
-    main()

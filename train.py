@@ -6,7 +6,7 @@ from torch import nn
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 
-from metrics import angle_error, relative_amplitude_error
+from utils import angle_error, relative_amplitude_error
 
 
 def calculate_metrics(B: torch.Tensor, B_pred: torch.Tensor):
@@ -54,17 +54,26 @@ def test_one_epoch(
     model: nn.Module,
     dataloader: DataLoader,
     criterion: nn.Module,
-) -> float:
+) -> Tuple[float, float, float]:
     model.eval()
     batch_losses = []
+    batch_angle_errs = []
+    batch_amp_errs = []
 
     with torch.no_grad():
         for X, B in dataloader:
             B_pred = model(X)
             loss = criterion(B, B_pred)
             batch_losses.append(loss.item())
+            bang, bamp = calculate_metrics(B, B_pred)
+            batch_angle_errs.append(np.mean(bang, axis=0))
+            batch_amp_errs.append(np.mean(bamp, axis=0))
 
-    return np.mean(batch_losses, axis=0)
+    return (
+        np.mean(batch_losses, axis=0),
+        np.mean(batch_angle_errs, axis=0),
+        np.mean(batch_amp_errs, axis=0),
+    )
 
 
 def validate(data, model, criterion):
