@@ -2,11 +2,12 @@ import json
 import os
 from typing import Dict, Literal, Tuple
 
-from matplotlib import colormaps
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import colormaps
 from scipy.interpolate import griddata
-from utils import relative_amplitude_error, angle_error
+
+from .utils import angle_error, relative_amplitude_error
 
 
 def plot_loss(stats: Dict, save_path: str | None = None, show_plot: bool = False):
@@ -303,7 +304,7 @@ def create_amplitude_error_plot(points, amp_errors, angle_errors, a, b):
 
 
 if __name__ == "__main__":
-    from dataset import ChiMode, get_data
+    from src.dataset import ChiMode, get_data
 
     X_all, B_all = get_data("data/old", chi_mode=ChiMode.ISOTROPIC)
     X, B = np.squeeze(X_all), np.squeeze(B_all)

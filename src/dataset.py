@@ -1,7 +1,7 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from enum import Enum
 from pathlib import Path
 from typing import Tuple
-from enum import Enum
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 import torch

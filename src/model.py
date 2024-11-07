@@ -52,7 +52,7 @@ class Network(nn.Module):
         return self.output(x)
 
 
-class PhysicsLoss(nn.Module):
+class CorrectionLoss(nn.Module):
     def __init__(self, loss: Type[nn.Module] = nn.L1Loss) -> None:
         super().__init__()
         self.loss = loss()
@@ -61,4 +61,16 @@ class PhysicsLoss(nn.Module):
         B_demag = B[..., :3]
         B_ana = B[..., 3:]
 
-        return self.loss(B_demag, B_ana * B_pred)
+        return self.loss(B_demag / B_ana, B_pred)
+
+
+class FieldLoss(nn.Module):
+    def __init__(self, loss: Type[nn.Module] = nn.L1Loss) -> None:
+        super().__init__()
+        self.loss = loss()
+
+    def forward(self, B, B_pred):
+        B_demag = B[..., :3]
+        B_ana = B[..., 3:]
+
+        return self.loss(B_demag, B_pred * B_ana)

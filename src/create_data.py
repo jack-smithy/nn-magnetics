@@ -1,8 +1,8 @@
+import magpylib as magpy
+import numpy as np
+from magpylib import Collection
 from magpylib_material_response.demag import apply_demag
 from magpylib_material_response.meshing import mesh_Cuboid
-import magpylib as magpy
-from magpylib import Collection
-import numpy as np
 
 eps = 1e-6
 
