@@ -15,7 +15,7 @@ class Network(nn.Module):
         *args,
         **kwargs,
     ) -> None:
-        super().__init__(*args, **kwargs)
+        super().__init__()
 
         self.linear1 = nn.Linear(
             in_features=in_features,
@@ -74,3 +74,11 @@ class FieldLoss(nn.Module):
         B_ana = B[..., 3:]
 
         return self.loss(B_demag, B_pred * B_ana)
+
+
+def get_num_params(model: torch.nn.Module, trainable_only: bool = False) -> int:
+    return (
+        sum(p.numel() for p in model.parameters())
+        if trainable_only
+        else sum(p.numel() for p in model.parameters() if p.requires_grad)
+    )

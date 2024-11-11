@@ -4,10 +4,10 @@ from typing import Dict, Literal, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib import colormaps
+from matplotlib import colormaps, colors, patches
 from scipy.interpolate import griddata
 
-from .utils import angle_error, relative_amplitude_error
+from src.utils import angle_error, relative_amplitude_error
 
 
 def plot_loss(stats: Dict, save_path: str | None = None, show_plot: bool = False):
@@ -32,8 +32,6 @@ def plot_loss(stats: Dict, save_path: str | None = None, show_plot: bool = False
     plt.tight_layout()
 
     if save_path is not None:
-        os.makedirs(save_path)
-
         with open(f"{save_path}/training_stats.json", "w+") as f:
             json.dump(stats, f)
 
@@ -301,6 +299,125 @@ def create_amplitude_error_plot(points, amp_errors, angle_errors, a, b):
     plt.tight_layout()
 
     return fig, (ax1, ax2)
+
+
+def plot_heatmaps_amplitude(
+    grid,
+    amplitude_errors_baseline,
+    amplitude_errors_trained,
+    a,
+    b,
+    chi,
+    trained,
+    save_path=None,
+    show_plot=False,
+):
+    eps = 0.03
+
+    x = grid.T[0] * a
+    y = grid.T[1] * b
+    z = grid.T[2]
+
+    mask = y == y[0]
+    x_slice = x[mask]
+    z_slice = z[mask]
+    amplitude_errors_trained_slice = amplitude_errors_trained[mask]
+    amplitude_errors_baseline_slice = amplitude_errors_baseline[mask]
+
+    x_bins = np.linspace(min(x_slice), max(x_slice), 25)
+    z_bins = np.linspace(min(z_slice), max(z_slice), 25)
+
+    vmin = min(
+        min(amplitude_errors_trained_slice),
+        min(amplitude_errors_baseline_slice),
+    )
+
+    vmax = max(
+        max(amplitude_errors_trained_slice),
+        max(amplitude_errors_baseline_slice),
+    )
+
+    print(vmin, vmax)
+
+    norm_amplitude = colors.TwoSlopeNorm(
+        vmin=vmin,
+        vcenter=0,
+        vmax=vmax,
+    )
+
+    heatmap_amplitude, x_edges, z_edges = np.histogram2d(
+        x_slice,
+        z_slice,
+        bins=[x_bins, z_bins],
+        weights=amplitude_errors_trained_slice,
+    )
+    heatmap_counts_amplitude, _, _ = np.histogram2d(
+        x_slice, z_slice, bins=[x_bins, z_bins]
+    )
+
+    heatmap_amplitude = np.divide(
+        heatmap_amplitude,
+        heatmap_counts_amplitude,
+        where=heatmap_counts_amplitude != 0,
+    )
+
+    heatmap_angle, x_edges, z_edges = np.histogram2d(
+        x_slice,
+        z_slice,
+        bins=[x_bins, z_bins],
+        weights=amplitude_errors_baseline_slice,
+    )
+    heatmap_counts_angle, _, _ = np.histogram2d(x_slice, z_slice, bins=[x_bins, z_bins])
+
+    heatmap_angle = np.divide(
+        heatmap_angle,
+        heatmap_counts_angle,
+        where=heatmap_counts_angle != 0,
+    )
+
+    # Plot the heatmap
+    fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(6, 6))
+
+    mesh = axs[0].pcolormesh(
+        x_edges,
+        z_edges,
+        heatmap_amplitude.T,
+        shading="auto",
+        cmap="RdBu_r",
+        norm=norm_amplitude,
+    )
+    axs[0].set_xlabel("X (mm)")
+    axs[0].set_ylabel("Z (mm)")
+    axs[0].add_patch(
+        patches.Rectangle((0, 0), width=a / 2 + eps, height=1 / 2 + eps, facecolor="w")
+    )
+    # plt.colorbar(mesh, label="Relative amplitude error (%)", ax=axs[0])
+
+    mesh = axs[1].pcolormesh(
+        x_edges,
+        z_edges,
+        heatmap_angle.T,
+        shading="auto",
+        cmap="RdBu_r",
+        norm=norm_amplitude,
+    )
+    axs[1].set_xlabel("X (mm)")
+    axs[1].set_ylabel("Z (mm)")
+    axs[1].add_patch(
+        patches.Rectangle((0, 0), width=a / 2 + eps, height=1 / 2 + eps, facecolor="w")
+    )
+
+    cbar = fig.colorbar(mesh, ax=axs.ravel().tolist())
+
+    plt.suptitle(
+        f"Baseline errors at y=0.\n dimensions=({round(a, 2)}, {round(b, 2)}, 1.00)\n chi={round(chi, 3)}"
+    )
+
+    if save_path is not None:
+        plt.savefig(f"{save_path}/heatmap_trained={trained}.png", format="png")
+
+    if show_plot:
+        plt.show()
 
 
 if __name__ == "__main__":

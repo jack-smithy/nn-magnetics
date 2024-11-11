@@ -1,18 +1,22 @@
 import copy
+import os
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 import tqdm
-from sklearn.model_selection import train_test_split
 from torch.optim.adam import Adam
 from torch.utils.data import DataLoader
 
 import wandb
-
 from src.dataset import ChiMode, DemagData, get_data_parallel
-from src.model import Network, CorrectionLoss
+from src.model import CorrectionLoss, Network, FieldLoss
 from src.plotting import plot_histograms, plot_loss
-from src.train import test_one_epoch, train_one_epoch, validate
+from src.train import (
+    test_one_epoch,
+    train_one_epoch,
+    validate,
+)
 from src.utils import get_device
 
 torch.manual_seed(0)
@@ -41,47 +45,51 @@ def run(epochs, batch_size, learning_rate, data_dir, save_path, log=False):
             # track hyperparameters and run metadata
             config={
                 "learning_rate": learning_rate,
-                "architecture": "MLP",
+                "architecture": "MLP-SiLU-double-width",
                 "dataset": "data/",
                 "epochs": epochs,
                 "batch_size": batch_size,
             },
         )
 
-    X, B = get_data_parallel(data_dir, ChiMode.ISOTROPIC)
+    os.makedirs(save_path)
 
-    data = train_test_split(X, B, test_size=0.5, shuffle=True)
-    original_shape_data = data.copy()
-
-    X_train, X_test, B_train, B_test = data
-
-    X_train = X_train.reshape(-1, 6)
-    X_test = X_test.reshape(-1, 6)
-    B_train = B_train.reshape(-1, 6)
-    B_test = B_test.reshape(-1, 6)
+    X_train, B_train = get_data_parallel(f"{data_dir}/train", ChiMode.ISOTROPIC)
+    X_test, B_test = get_data_parallel(f"{data_dir}/test", ChiMode.ISOTROPIC)
 
     train_dataloader = DataLoader(
-        dataset=DemagData(X=X_train, y=B_train, device=DEVICE),
+        dataset=DemagData(
+            X=X_train.reshape(-1, 6),
+            y=B_train.reshape(-1, 6),
+            device=DEVICE,
+        ),
         batch_size=batch_size,
         shuffle=False,
     )
+
     test_dataloader = DataLoader(
-        dataset=DemagData(X=X_test, y=B_test, device=DEVICE),
+        dataset=DemagData(
+            X=X_test.reshape(-1, 6),
+            y=B_test.reshape(-1, 6),
+            device=DEVICE,
+        ),
         batch_size=batch_size,
         shuffle=True,
     )
 
-    criterion = CorrectionLoss()
+    criterion = FieldLoss()
 
     model = Network(
-        in_features=X_train.shape[1],
-        hidden_dim_factor=6,
+        in_features=6,
+        hidden_dim_factor=12,
         out_features=3,
+        activation=F.silu,
     )
 
     opt = Adam(params=model.parameters(), lr=learning_rate)
 
-    best_weights = copy.deepcopy(model).state_dict()
+    best_model = copy.deepcopy(model)
+    best_weights = best_model.state_dict()
 
     best_loss = np.inf
     for _ in tqdm.tqdm(range(epochs), unit="epoch", disable=False):
@@ -115,10 +123,12 @@ def run(epochs, batch_size, learning_rate, data_dir, save_path, log=False):
 
         if test_loss < best_loss:
             best_loss = test_loss
-            best_weights = copy.deepcopy(model).state_dict()
+            best_model = copy.deepcopy(model)
+            best_weights = best_model.state_dict()
 
-    val_stats = validate(original_shape_data, model, criterion)
+    val_stats = validate(X_test, B_test, best_model, criterion)
 
     plot_loss(training_stats, save_path, show_plot=False)
     plot_histograms(val_stats, save_path=save_path, show_plot=False)
+
     torch.save(best_weights, f"{save_path}/weights.pt")

@@ -22,10 +22,14 @@ def simulate_demag(a: float, b: float, chi: float) -> dict:
 
     print("Creating measurement grid")
     _grid = []
-    for xx in np.linspace(0, a * 2.5, 26):
-        for yy in np.linspace(0, b * 2.5, 26):
-            for zz in np.linspace(0, 2.5, 26):
-                if not (0 <= xx <= a / 2 and 0 <= yy <= b / 2 and 0 <= zz <= 1 / 2):
+    for xx in np.linspace(eps, a * 2.5, 26):
+        for yy in np.linspace(eps, b * 2.5, 26):
+            for zz in np.linspace(eps, 2.5, 26):
+                if not (
+                    0 <= xx <= a / 2 + eps
+                    and 0 <= yy <= b / 2 + eps
+                    and 0 <= zz <= 1 / 2 + eps
+                ):
                     _grid.append([xx, yy, zz])
 
     grid = np.array(_grid)
@@ -60,7 +64,7 @@ def simulate_demag(a: float, b: float, chi: float) -> dict:
         "grid_field": grid_field,
         "grid_field_ana": grid_field_ana,
         "grid_field_reduced": grid_field_reduced,
-        "demagnetization_factor": demag_factor,
+        "demagnetization_factor": demag_factor[2],
         # magnetization_reduced=magnetization_reduced,
         # grid_field_reduced=grid_field_reduced,
         # cell_field_reduced=cell_field_reduced,
@@ -69,26 +73,3 @@ def simulate_demag(a: float, b: float, chi: float) -> dict:
         # grid_phi=grid_phi,
         # grid_phi_reduced=grid_phi_reduced,
     }
-
-
-def simulate_task(index):
-    # chi_perp = np.random.uniform(0.0, 1.0)
-    # chi_long = np.random.uniform(0.0, 1.0)
-    # chi = (chi_perp, chi_perp, chi_long)
-
-    a = np.random.uniform(low=0.3, high=3.0)
-    b = np.random.uniform(low=0.3, high=3.0)
-    chi = np.random.uniform(0, 1)
-
-    if a > b:
-        a, b = b, a
-
-    print(f"Starting simuation: {index}")
-    data = simulate_demag(a, b, chi)
-    path = f"data/isotropic_chi_v2/data_{index}.npz"
-    np.savez(path, **data)
-
-
-if __name__ == "__main__":
-    for idx in range(101, 501):
-        simulate_task(idx)

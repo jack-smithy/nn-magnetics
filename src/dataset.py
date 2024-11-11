@@ -19,6 +19,20 @@ class ChiMode(Enum):
     ANISOTROPIC = "anisotropic"
 
 
+class DemagData(Dataset):
+    def __init__(self, X: np.ndarray, y: np.ndarray, device: str = "cpu"):
+        self.X = torch.tensor(X).to(device, dtype=_DTYPES[device])
+        self.y = torch.tensor(y).to(device, dtype=_DTYPES[device])
+
+        assert self.X.shape[0] == self.y.shape[0]
+
+    def __len__(self) -> int:
+        return len(self.X)
+
+    def __getitem__(self, idx) -> Tuple[torch.Tensor, torch.Tensor]:
+        return self.X[idx], self.y[idx]
+
+
 def get_data_parallel(path: str | Path, chi_mode: ChiMode) -> Tuple[np.ndarray, ...]:
     if isinstance(path, str):
         path = Path(path)
@@ -95,18 +109,18 @@ def get_one_magnet(chi_mode, data):
     # select relevant parts of the input data
     # in this case, magnet dims, susceptibility, and point in space
     match chi_mode.value:
-        case ChiMode.ANISOTROPIC.value:
-            input_data_new = np.vstack(
-                (
-                    np.ones(length) * data["a"],
-                    np.ones(length) * data["b"],
-                    np.ones(length) * data["chi_perp"],
-                    np.ones(length) * data["chi_long"],
-                    grid[:, 0] / data["a"],
-                    grid[:, 1] / data["b"],
-                    grid[:, 2],
-                )
-            ).T
+        # case ChiMode.ANISOTROPIC.value:
+        #     input_data_new = np.vstack(
+        #         (
+        #             np.ones(length) * data["a"],
+        #             np.ones(length) * data["b"],
+        #             np.ones(length) * data["chi_perp"],
+        #             np.ones(length) * data["chi_long"],
+        #             grid[:, 0] / data["a"],
+        #             grid[:, 1] / data["b"],
+        #             grid[:, 2],
+        #         )
+        #     ).T
         case ChiMode.ISOTROPIC.value:
             input_data_new = np.vstack(
                 (
@@ -128,17 +142,3 @@ def get_one_magnet(chi_mode, data):
     )
 
     return input_data_new, output_data_new
-
-
-class DemagData(Dataset):
-    def __init__(self, X: np.ndarray, y: np.ndarray, device: str = "cpu"):
-        self.X = torch.tensor(X).to(device, dtype=_DTYPES[device])
-        self.y = torch.tensor(y).to(device, dtype=_DTYPES[device])
-
-        assert self.X.shape[0] == self.y.shape[0]
-
-    def __len__(self) -> int:
-        return len(self.X)
-
-    def __getitem__(self, idx) -> Tuple[torch.Tensor, torch.Tensor]:
-        return self.X[idx], self.y[idx]

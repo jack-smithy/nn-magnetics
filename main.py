@@ -4,11 +4,11 @@ from src import run
 
 
 def main():
-    EPOCHS = 5
+    EPOCHS = 10
     BATCH_SIZE = 128
     LEARNING_RATE = 1e-4
     SAVE_PATH = f"results/{str(datetime.datetime.now())}"
-    DATA_DIR = "data/isotropic_chi_v2"
+    DATA_DIR = "data/isotropic_chi"
 
     run(
         epochs=EPOCHS,
@@ -16,7 +16,7 @@ def main():
         learning_rate=LEARNING_RATE,
         data_dir=DATA_DIR,
         save_path=SAVE_PATH,
-        log=True,
+        log=False,
     )
 
 

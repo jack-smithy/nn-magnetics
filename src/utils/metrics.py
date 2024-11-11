@@ -1,7 +1,9 @@
 import numpy as np
 
+eps = 1e-10
 
-def relative_amplitude_error(v1, v2):
+
+def relative_amplitude_error(v1, v2, return_abs=True):
     """
     Calculates the relative amplitude error between two vectors in %.
 
@@ -16,7 +18,12 @@ def relative_amplitude_error(v1, v2):
     v1_norm = np.linalg.norm(v1, axis=1)
     v2_norm = np.linalg.norm(v2, axis=1)
 
-    return np.abs((v2_norm - v1_norm) / v1_norm) * 100
+    errors = (v2_norm - v1_norm) / v1_norm * 100
+
+    if return_abs:
+        return np.abs(errors)
+
+    return errors
 
 
 def angle_error(v1, v2):
