@@ -16,7 +16,7 @@ def main():
         learning_rate=LEARNING_RATE,
         data_dir=DATA_DIR,
         save_path=SAVE_PATH,
-        log=False,
+        log=True,
     )
 
 

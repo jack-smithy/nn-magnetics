@@ -1,4 +1,3 @@
-import copy
 import os
 
 import numpy as np
@@ -9,20 +8,73 @@ from torch.optim.adam import Adam
 from torch.utils.data import DataLoader
 
 import wandb
-from src.dataset import ChiMode, DemagData, get_data_parallel
-from src.model import CorrectionLoss, Network, FieldLoss
-from src.plotting import plot_histograms, plot_loss
+from src.dataset import ChiMode, DemagData, get_data_parallel, get_one_magnet
+from src.model import Network, FieldLoss
+from src.plotting import (
+    plot_histograms,
+    plot_loss,
+    plot_heatmaps_amplitude,
+    plot_heatmaps_angle,
+)
 from src.train import (
     test_one_epoch,
     train_one_epoch,
     validate,
+    calculate_metrics,
+    calculate_metrics_baseline,
 )
-from src.utils import get_device
 
 torch.manual_seed(0)
 np.random.seed(0)
 
-DEVICE = get_device(use_accelerators=False)
+DEVICE = "cpu"
+
+
+def plot_heatmaps(model, save_path, epoch):
+    X, B = get_one_magnet(
+        chi_mode=ChiMode.ISOTROPIC,
+        data=np.load("data/isotropic_chi/eval/data_1.npz"),
+    )
+
+    grid = X[:, 3:]
+    a = float(X[0, 0])
+    b = float(X[0, 1])
+    chi = float(X[0, 2])
+
+    with torch.no_grad():
+        B_pred = model(torch.tensor(X))
+
+    angle_errors_baseline, amplitude_errors_baseline = calculate_metrics_baseline(
+        B=B,
+        return_abs=False,
+    )
+    angle_errors_trained, amplitude_errors_trained = calculate_metrics(
+        B=torch.tensor(B),
+        B_pred=B_pred,
+        return_abs=False,
+    )
+
+    plot_heatmaps_amplitude(
+        grid=grid,
+        amplitude_errors_baseline=amplitude_errors_baseline,
+        amplitude_errors_trained=amplitude_errors_trained,
+        a=a,
+        b=b,
+        chi=chi,
+        epoch=epoch,
+        save_path=save_path,
+    )
+
+    plot_heatmaps_angle(
+        grid=grid,
+        angle_errors_baseline=angle_errors_baseline,
+        angle_errors_trained=angle_errors_trained,
+        a=a,
+        b=b,
+        chi=chi,
+        epoch=epoch,
+        save_path=save_path,
+    )
 
 
 def run(epochs, batch_size, learning_rate, data_dir, save_path, log=False):
@@ -54,8 +106,8 @@ def run(epochs, batch_size, learning_rate, data_dir, save_path, log=False):
 
     os.makedirs(save_path)
 
-    X_train, B_train = get_data_parallel(f"{data_dir}/train", ChiMode.ISOTROPIC)
-    X_test, B_test = get_data_parallel(f"{data_dir}/test", ChiMode.ISOTROPIC)
+    X_train, B_train = get_data_parallel(f"{data_dir}/train_fast", ChiMode.ISOTROPIC)
+    X_test, B_test = get_data_parallel(f"{data_dir}/test_fast", ChiMode.ISOTROPIC)
 
     train_dataloader = DataLoader(
         dataset=DemagData(
@@ -88,11 +140,7 @@ def run(epochs, batch_size, learning_rate, data_dir, save_path, log=False):
 
     opt = Adam(params=model.parameters(), lr=learning_rate)
 
-    best_model = copy.deepcopy(model)
-    best_weights = best_model.state_dict()
-
-    best_loss = np.inf
-    for _ in tqdm.tqdm(range(epochs), unit="epoch", disable=False):
+    for ep in tqdm.tqdm(range(epochs), unit="epoch", disable=False):
         train_loss = train_one_epoch(
             model=model,
             dataloader=train_dataloader,
@@ -121,14 +169,15 @@ def run(epochs, batch_size, learning_rate, data_dir, save_path, log=False):
                 }
             )
 
-        if test_loss < best_loss:
-            best_loss = test_loss
-            best_model = copy.deepcopy(model)
-            best_weights = best_model.state_dict()
-
-    val_stats = validate(X_test, B_test, best_model, criterion)
+    val_stats = validate(
+        X_test,
+        B_test,
+        model,
+        criterion,
+    )
 
     plot_loss(training_stats, save_path, show_plot=False)
     plot_histograms(val_stats, save_path=save_path, show_plot=False)
+    plot_heatmaps(model=model, save_path=save_path, epoch="done")
 
-    torch.save(best_weights, f"{save_path}/weights.pt")
+    torch.save(model.state_dict(), f"{save_path}/weights.pt")

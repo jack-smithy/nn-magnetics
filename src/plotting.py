@@ -4,6 +4,7 @@ from typing import Dict, Literal, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.linalg as LA
 from matplotlib import colormaps, colors, patches
 from scipy.interpolate import griddata
 
@@ -308,11 +309,11 @@ def plot_heatmaps_amplitude(
     a,
     b,
     chi,
-    trained,
+    epoch,
     save_path=None,
     show_plot=False,
 ):
-    eps = 0.03
+    eps = 0.01
 
     x = grid.T[0] * a
     y = grid.T[1] * b
@@ -321,6 +322,7 @@ def plot_heatmaps_amplitude(
     mask = y == y[0]
     x_slice = x[mask]
     z_slice = z[mask]
+
     amplitude_errors_trained_slice = amplitude_errors_trained[mask]
     amplitude_errors_baseline_slice = amplitude_errors_baseline[mask]
 
@@ -337,104 +339,210 @@ def plot_heatmaps_amplitude(
         max(amplitude_errors_baseline_slice),
     )
 
-    print(vmin, vmax)
-
     norm_amplitude = colors.TwoSlopeNorm(
         vmin=vmin,
         vcenter=0,
         vmax=vmax,
     )
 
-    heatmap_amplitude, x_edges, z_edges = np.histogram2d(
+    heatmap_amplitude_trained, x_edges, z_edges = np.histogram2d(
         x_slice,
         z_slice,
         bins=[x_bins, z_bins],
         weights=amplitude_errors_trained_slice,
     )
-    heatmap_counts_amplitude, _, _ = np.histogram2d(
+    heatmap_counts_amplitude_trained, _, _ = np.histogram2d(
         x_slice, z_slice, bins=[x_bins, z_bins]
     )
 
-    heatmap_amplitude = np.divide(
-        heatmap_amplitude,
-        heatmap_counts_amplitude,
-        where=heatmap_counts_amplitude != 0,
+    heatmap_amplitude_trained = np.divide(
+        heatmap_amplitude_trained,
+        heatmap_counts_amplitude_trained,
+        where=heatmap_counts_amplitude_trained != 0,
     )
 
-    heatmap_angle, x_edges, z_edges = np.histogram2d(
+    heatmap_amplitude_baseline, x_edges, z_edges = np.histogram2d(
         x_slice,
         z_slice,
         bins=[x_bins, z_bins],
         weights=amplitude_errors_baseline_slice,
     )
-    heatmap_counts_angle, _, _ = np.histogram2d(x_slice, z_slice, bins=[x_bins, z_bins])
-
-    heatmap_angle = np.divide(
-        heatmap_angle,
-        heatmap_counts_angle,
-        where=heatmap_counts_angle != 0,
+    heatmap_counts_amplitude_baseline, _, _ = np.histogram2d(
+        x_slice, z_slice, bins=[x_bins, z_bins]
     )
 
-    # Plot the heatmap
-    fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(6, 6))
+    heatmap_amplitude_baseline = np.divide(
+        heatmap_amplitude_baseline,
+        heatmap_counts_amplitude_baseline,
+        where=heatmap_counts_amplitude_baseline != 0,
+    )
+
+    fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(6, 7))
 
     mesh = axs[0].pcolormesh(
         x_edges,
         z_edges,
-        heatmap_amplitude.T,
+        heatmap_amplitude_trained.T,
         shading="auto",
-        cmap="RdBu_r",
+        cmap="seismic",
         norm=norm_amplitude,
     )
+
     axs[0].set_xlabel("X (mm)")
-    axs[0].set_ylabel("Z (mm)")
+    axs[0].set_ylabel("Z (mm) - NN Solution")
     axs[0].add_patch(
-        patches.Rectangle((0, 0), width=a / 2 + eps, height=1 / 2 + eps, facecolor="w")
+        patches.Rectangle(
+            (0, 0),
+            width=a / 2 + eps,
+            height=1 / 2 + eps,
+            linewidth=2,
+            edgecolor="k",
+            facecolor="none",
+        )
+    )
+
+    mesh = axs[1].pcolormesh(
+        x_edges,
+        z_edges,
+        heatmap_amplitude_baseline.T,
+        shading="auto",
+        cmap="coolwarm",
+        norm=norm_amplitude,
+    )
+
+    axs[1].set_xlabel("X (mm)")
+    axs[1].set_ylabel("Z (mm) - Analytical Solution")
+    axs[1].add_patch(
+        patches.Rectangle(
+            (0, 0),
+            width=a / 2 + eps,
+            height=1 / 2 + eps,
+            linewidth=2,
+            edgecolor="k",
+            facecolor="none",
+        )
+    )
+
+    cbar = fig.colorbar(mesh, ax=axs.ravel().tolist())
+    cbar.set_label("Relative Amplitude Error (%)")
+
+    if save_path is not None:
+        plt.savefig(f"{save_path}/heatmap_amplitude_epoch_{epoch}.png", format="png")
+
+    if show_plot:
+        plt.show()
+
+
+def plot_heatmaps_angle(
+    grid,
+    angle_errors_baseline,
+    angle_errors_trained,
+    a,
+    b,
+    chi,
+    epoch,
+    save_path=None,
+    show_plot=False,
+):
+    eps = 0.01
+
+    x = grid.T[0] * a
+    y = grid.T[1] * b
+    z = grid.T[2]
+
+    mask = y == y[0]
+    x_slice = x[mask]
+    z_slice = z[mask]
+
+    angle_errors_trained_slice = angle_errors_trained[mask]
+    angle_errors_baseline_slice = angle_errors_baseline[mask]
+
+    x_bins = np.linspace(min(x_slice), max(x_slice), 25)
+    z_bins = np.linspace(min(z_slice), max(z_slice), 25)
+
+    heatmap_angle_trained, x_edges, z_edges = np.histogram2d(
+        x_slice,
+        z_slice,
+        bins=[x_bins, z_bins],
+        weights=angle_errors_trained_slice,
+    )
+    heatmap_counts_angle_trained, _, _ = np.histogram2d(
+        x_slice, z_slice, bins=[x_bins, z_bins]
+    )
+
+    heatmap_angle_trained = np.divide(
+        heatmap_angle_trained,
+        heatmap_counts_angle_trained,
+        where=heatmap_counts_angle_trained != 0,
+    )
+
+    heatmap_angle_baseline, x_edges, z_edges = np.histogram2d(
+        x_slice,
+        z_slice,
+        bins=[x_bins, z_bins],
+        weights=angle_errors_baseline_slice,
+    )
+    heatmap_counts_amplitude_baseline, _, _ = np.histogram2d(
+        x_slice, z_slice, bins=[x_bins, z_bins]
+    )
+
+    heatmap_amplitude_baseline = np.divide(
+        heatmap_angle_baseline,
+        heatmap_counts_amplitude_baseline,
+        where=heatmap_counts_amplitude_baseline != 0,
+    )
+
+    # Plot the heatmap
+    fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(6, 7))
+
+    mesh = axs[0].pcolormesh(
+        x_edges,
+        z_edges,
+        heatmap_angle_trained.T,
+        shading="auto",
+        cmap="Reds",
+    )
+    # axs[0].quiver(x_slice, z_slice, Bx, Bz)
+    axs[0].set_xlabel("X (mm)")
+    axs[0].set_ylabel("Z (mm) - NN Solution")
+    axs[0].add_patch(
+        patches.Rectangle(
+            (0, 0),
+            width=a / 2 + eps,
+            height=1 / 2 + eps,
+            linewidth=2,
+            edgecolor="k",
+            facecolor="none",
+        )
     )
     # plt.colorbar(mesh, label="Relative amplitude error (%)", ax=axs[0])
 
     mesh = axs[1].pcolormesh(
         x_edges,
         z_edges,
-        heatmap_angle.T,
+        heatmap_amplitude_baseline.T,
         shading="auto",
-        cmap="RdBu_r",
-        norm=norm_amplitude,
+        cmap="Reds",
     )
+    # axs[1].quiver(x_slice, z_slice, Bx_pred, Bz_pred)
     axs[1].set_xlabel("X (mm)")
-    axs[1].set_ylabel("Z (mm)")
+    axs[1].set_ylabel("Z (mm) - Analytical Solution")
     axs[1].add_patch(
-        patches.Rectangle((0, 0), width=a / 2 + eps, height=1 / 2 + eps, facecolor="w")
+        patches.Rectangle(
+            (0, 0),
+            width=a / 2 + eps,
+            height=1 / 2 + eps,
+            linewidth=2,
+            edgecolor="k",
+            facecolor="none",
+        )
     )
 
     cbar = fig.colorbar(mesh, ax=axs.ravel().tolist())
-
-    plt.suptitle(
-        f"Baseline errors at y=0.\n dimensions=({round(a, 2)}, {round(b, 2)}, 1.00)\n chi={round(chi, 3)}"
-    )
+    cbar.set_label("Angle Error (°)")
 
     if save_path is not None:
-        plt.savefig(f"{save_path}/heatmap_trained={trained}.png", format="png")
+        plt.savefig(f"{save_path}/heatmap_angle_epoch_{epoch}.png", format="png")
 
     if show_plot:
         plt.show()
-
-
-if __name__ == "__main__":
-    from src.dataset import ChiMode, get_data
-
-    X_all, B_all = get_data("data/old", chi_mode=ChiMode.ISOTROPIC)
-    X, B = np.squeeze(X_all), np.squeeze(B_all)
-
-    B_demag = B[..., :3]
-    B_ana = B[..., 3:]
-
-    angle_errors_baseline = np.mean(angle_error(B_demag, B_ana), axis=1)
-    amp_errors_baseline = np.mean(relative_amplitude_error(B_demag, B_ana), axis=1)
-
-    stats = {
-        "angle_errors_baseline": angle_errors_baseline,
-        "amp_errors_baseline": amp_errors_baseline,
-    }
-
-    plot_baseline_histograms(stats, show_plot=True, save_path=None)

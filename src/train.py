@@ -7,7 +7,6 @@ from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 
 from src.utils import angle_error, relative_amplitude_error
-from src.plotting import plot_heatmaps_amplitude
 
 
 def calculate_metrics(B: torch.Tensor, B_pred: torch.Tensor, return_abs=True):
@@ -36,51 +35,6 @@ def calculate_metrics_baseline(
     )
 
     return angle_errors, amplitude_errors
-
-
-def plot_heatmaps_baseline(X, B, save_path):
-    grid = X[:, 4:]
-    a = X[0, 0]
-    b = X[0, 1]
-    chi = X[0, 2]
-
-    angle_errors, amplitude_errors = calculate_metrics_baseline(B, return_abs=False)
-
-    plot_heatmaps_amplitude(
-        grid,
-        amplitude_errors_baseline=angle_errors,
-        amplitude_errors_trained=amplitude_errors,
-        a=a,
-        b=b,
-        chi=chi,
-        trained=False,
-        save_path=save_path,
-    )
-
-
-def plot_heatmaps_preds(X, B, model, save_path):
-    grid = X[:, 4:]
-    a = X[0, 0]
-    b = X[0, 1]
-    chi = X[0, 2]
-
-    with torch.no_grad():
-        B_pred = model(torch.tensor(X))
-
-    angle_errors, amplitude_errors = calculate_metrics(
-        torch.tensor(B), B_pred, return_abs=False
-    )
-
-    plot_heatmaps_amplitude(
-        grid,
-        amplitude_errors_baseline=angle_errors,
-        amplitude_errors_trained=amplitude_errors,
-        a=a,
-        b=b,
-        chi=chi,
-        trained=True,
-        save_path=save_path,
-    )
 
 
 def train_one_epoch(
