@@ -19,6 +19,7 @@ exceptiongroup==1.2.2
 executing==2.1.0
 filelock==3.16.1
 fonttools==4.54.1
+-e git+ssh://git@github.com/jack-smithy/nn_magnetics.git@1aaa37d9571fae601e67c386e7ffaa05525491d4#egg=foo
 fsspec==2024.9.0
 gitdb==4.0.11
 GitPython==3.1.43
@@ -43,6 +44,7 @@ mypy==1.12.0
 mypy-extensions==1.0.0
 nest-asyncio==1.6.0
 networkx==3.4.1
+-e git+ssh://git@github.com/jack-smithy/nn_magnetics.git@1aaa37d9571fae601e67c386e7ffaa05525491d4#egg=nn_magnetics
 numpy==2.1.2
 optuna==4.0.0
 packaging==24.1
@@ -64,6 +66,7 @@ PyYAML==6.0.2
 pyzmq==26.2.0
 requests==2.32.3
 ruff==0.6.9
+SciencePlots==2.1.1
 scikit-learn==1.5.2
 scipy==1.14.1
 sentry-sdk==2.17.0
