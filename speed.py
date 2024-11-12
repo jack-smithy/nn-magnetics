@@ -15,17 +15,17 @@ for epoch in range(100):
     t1 = time.perf_counter()
     cpu_times.append(t1 - t0)
 
-device = "mps"
+device = "cuda:0"
 model = model.to(device)
 x = x.to(device)
-torch.mps.synchronize()
+torch.cuda.synchronize()
 
 gpu_times = []
 for epoch in range(100):
-    torch.mps.synchronize()
+    torch.cuda.synchronize()
     t0 = time.perf_counter()
     output = model(x)
-    torch.mps.synchronize()
+    torch.cuda.synchronize()
     t1 = time.perf_counter()
     gpu_times.append(t1 - t0)
 
