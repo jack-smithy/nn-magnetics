@@ -4,8 +4,8 @@ from src.model import Network
 
 torch.set_default_dtype(torch.float32)
 
-x = torch.randn(100000, 6)
-model = Network(in_features=6, hidden_dim_factor=12, out_features=3)
+x = torch.randn(1024, 6)
+model = Network(in_features=6, hidden_dim_factor=48, out_features=12)
 
 cpu_times = []
 
