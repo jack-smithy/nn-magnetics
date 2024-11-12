@@ -12,11 +12,12 @@ def main():
 
     wandb.init(
         # set the wandb project where this run will be logged
-        project="isotropic-chi",
+        project="anisotropic-chi",
         # track hyperparameters and run metadata
         config={
             "learning_rate": LEARNING_RATE,
-            "architecture": "MLP-SiLU-single-width-output-act",
+            "architecture": "MLP-single-width",
+            "activation": "SiLU",
             "loss": "field-loss",
             "dataset": "data/isotropic_chi",
             "epochs": EPOCHS,

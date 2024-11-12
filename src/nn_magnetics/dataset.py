@@ -109,18 +109,18 @@ def get_one_magnet(chi_mode, data):
     # select relevant parts of the input data
     # in this case, magnet dims, susceptibility, and point in space
     match chi_mode.value:
-        # case ChiMode.ANISOTROPIC.value:
-        #     input_data_new = np.vstack(
-        #         (
-        #             np.ones(length) * data["a"],
-        #             np.ones(length) * data["b"],
-        #             np.ones(length) * data["chi_perp"],
-        #             np.ones(length) * data["chi_long"],
-        #             grid[:, 0] / data["a"],
-        #             grid[:, 1] / data["b"],
-        #             grid[:, 2],
-        #         )
-        #     ).T
+        case ChiMode.ANISOTROPIC.value:
+            input_data_new = np.vstack(
+                (
+                    np.ones(length) * data["a"],
+                    np.ones(length) * data["b"],
+                    np.ones(length) * data["chi_perp"],
+                    np.ones(length) * data["chi_long"],
+                    grid[:, 0] / data["a"],
+                    grid[:, 1] / data["b"],
+                    grid[:, 2],
+                )
+            ).T
         case ChiMode.ISOTROPIC.value:
             input_data_new = np.vstack(
                 (

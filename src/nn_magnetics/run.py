@@ -42,12 +42,12 @@ def run(epochs, batch_size, learning_rate, data_dir, save_path, log=False):
 
     os.makedirs(save_path)
 
-    X_train, B_train = get_data_parallel(f"{data_dir}/train", ChiMode.ISOTROPIC)
-    X_test, B_test = get_data_parallel(f"{data_dir}/test", ChiMode.ISOTROPIC)
+    X_train, B_train = get_data_parallel(f"{data_dir}/train_fast", ChiMode.ANISOTROPIC)
+    X_test, B_test = get_data_parallel(f"{data_dir}/test_fast", ChiMode.ANISOTROPIC)
 
     train_dataloader = DataLoader(
         dataset=DemagData(
-            X=X_train.reshape(-1, 6),
+            X=X_train.reshape(-1, 7),
             y=B_train.reshape(-1, 6),
             device=DEVICE,
         ),
@@ -57,7 +57,7 @@ def run(epochs, batch_size, learning_rate, data_dir, save_path, log=False):
 
     test_dataloader = DataLoader(
         dataset=DemagData(
-            X=X_test.reshape(-1, 6),
+            X=X_test.reshape(-1, 7),
             y=B_test.reshape(-1, 6),
             device=DEVICE,
         ),
