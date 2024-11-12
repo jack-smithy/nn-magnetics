@@ -38,7 +38,7 @@ def get_data_parallel(path: str | Path, chi_mode: ChiMode) -> Tuple[np.ndarray, 
         path = Path(path)
 
     # initialize empty lists for data
-    input_dim = 6
+    input_dim = 6 if chi_mode.value == ChiMode.ISOTROPIC.value else 7
     output_dim = 6
 
     input_data_list = []

@@ -27,7 +27,7 @@ np.random.seed(0)
 DEVICE = "cpu"
 
 
-def run(epochs, batch_size, learning_rate, data_dir, save_path, log=False):
+def run(epochs, batch_size, learning_rate, data_dir, save_path):
     training_stats = {
         "train_loss": [],
         "test_loss": [],
@@ -42,8 +42,10 @@ def run(epochs, batch_size, learning_rate, data_dir, save_path, log=False):
 
     os.makedirs(save_path)
 
-    X_train, B_train = get_data_parallel(f"{data_dir}/train_fast", ChiMode.ANISOTROPIC)
-    X_test, B_test = get_data_parallel(f"{data_dir}/test_fast", ChiMode.ANISOTROPIC)
+    X_train, B_train = get_data_parallel(f"{data_dir}/train", ChiMode.ANISOTROPIC)
+    X_test, B_test = get_data_parallel(
+        f"{data_dir}/test_anisotropic", ChiMode.ANISOTROPIC
+    )
 
     train_dataloader = DataLoader(
         dataset=DemagData(
@@ -68,7 +70,7 @@ def run(epochs, batch_size, learning_rate, data_dir, save_path, log=False):
     criterion = FieldLoss()
 
     model = Network(
-        in_features=6,
+        in_features=7,
         hidden_dim_factor=6,
         out_features=3,
         activation=F.silu,

@@ -135,7 +135,6 @@ def plot_heatmaps_amplitude(
     amplitude_errors_trained,
     a,
     b,
-    chi,
     epoch,
     save_path=None,
     show_plot=False,
@@ -267,7 +266,6 @@ def plot_heatmaps_angle(
     angle_errors_trained,
     a,
     b,
-    chi,
     epoch,
     save_path=None,
     show_plot=False,
@@ -381,17 +379,16 @@ def plot_heatmaps(
     model,
     save_path,
     epoch,
-    eval_path="data/isotropic_chi/eval/data_1.npz",
+    eval_path="data/anisotropic_chi/eval/data_1.npz",
 ):
     X, B = get_one_magnet(
-        chi_mode=ChiMode.ISOTROPIC,
+        chi_mode=ChiMode.ANISOTROPIC,
         data=np.load(eval_path),
     )
 
-    grid = X[:, 3:]
+    grid = X[:, 4:]
     a = float(X[0, 0])
     b = float(X[0, 1])
-    chi = float(X[0, 2])
 
     with torch.no_grad():
         B_pred = model(torch.tensor(X))
@@ -412,7 +409,6 @@ def plot_heatmaps(
         amplitude_errors_trained=amplitude_errors_trained,
         a=a,
         b=b,
-        chi=chi,
         epoch=epoch,
         save_path=save_path,
     )
@@ -423,7 +419,6 @@ def plot_heatmaps(
         angle_errors_trained=angle_errors_trained,
         a=a,
         b=b,
-        chi=chi,
         epoch=epoch,
         save_path=save_path,
     )
