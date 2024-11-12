@@ -7,7 +7,7 @@ from magpylib_material_response.meshing import mesh_Cuboid
 eps = 1e-6
 
 
-def simulate_demag(a: float, b: float, chi: float) -> dict:
+def simulate_demag(a: float, b: float, chi: tuple) -> dict:
     print("=" * 100)
 
     magnet = magpy.magnet.Cuboid(polarization=(0, 0, 1), dimension=(a, b, 1))
@@ -54,22 +54,12 @@ def simulate_demag(a: float, b: float, chi: float) -> dict:
     return {
         "a": a,
         "b": b,
-        # chi_perp=chi_perp,
-        # chi_long=chi_perp,
-        "chi": chi,
-        # cell_pos=cell_pos,
-        # cell_field=cell_field,
-        # cell_H=cell_H,
+        "chi_perp": chi[0],
+        "chi_long": chi[2],
+        # "chi": chi,
         "grid": grid,
         "grid_field": grid_field,
         "grid_field_ana": grid_field_ana,
         "grid_field_reduced": grid_field_reduced,
         "demagnetization_factor": demag_factor[2],
-        # magnetization_reduced=magnetization_reduced,
-        # grid_field_reduced=grid_field_reduced,
-        # cell_field_reduced=cell_field_reduced,
-        # cell_phi=cell_phi,
-        # cell_phi_reduced=cell_phi_reduced,
-        # grid_phi=grid_phi,
-        # grid_phi_reduced=grid_phi_reduced,
     }

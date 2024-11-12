@@ -6,6 +6,40 @@ from typing import Type
 torch.set_default_dtype(torch.float64)
 
 
+class AmplitudeCorrection(nn.Module):
+    def __init__(
+        self, in_features: int, hidden_dim_factor: int, *args, **kwargs
+    ) -> None:
+        super().__init__(*args, **kwargs)
+
+        self.linear1 = nn.Linear(
+            in_features=in_features,
+            out_features=4 * hidden_dim_factor,
+        )
+        self.linear2 = nn.Linear(
+            in_features=4 * hidden_dim_factor,
+            out_features=8 * hidden_dim_factor,
+        )
+        self.linear3 = nn.Linear(
+            in_features=8 * hidden_dim_factor,
+            out_features=4 * hidden_dim_factor,
+        )
+        self.linear4 = nn.Linear(
+            in_features=4 * hidden_dim_factor,
+            out_features=hidden_dim_factor,
+        )
+        self.output = nn.Linear(in_features=hidden_dim_factor, out_features=1)
+
+        self.activation = kwargs.get("activation", F.relu)
+
+    def forward(self, x):
+        x = self.activation(self.linear1(x))
+        x = self.activation(self.linear2(x))
+        x = self.activation(self.linear3(x))
+        x = self.activation(self.linear4(x))
+        return self.activation(self.output(x))
+
+
 class Network(nn.Module):
     def __init__(
         self,
@@ -49,7 +83,7 @@ class Network(nn.Module):
         x = self.activation(self.linear3(x))
         x = self.activation(self.linear4(x))
         x = self.activation(self.linear5(x))
-        return self.output(x)
+        return self.activation(self.output(x))
 
 
 class CorrectionLoss(nn.Module):

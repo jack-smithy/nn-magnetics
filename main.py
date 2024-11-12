@@ -8,7 +8,6 @@ def main():
     EPOCHS = 50
     BATCH_SIZE = 128
     LEARNING_RATE = 1e-4
-    SAVE_PATH = f"results/{str(datetime.datetime.now())}"
     DATA_DIR = "data/isotropic_chi"
 
     wandb.init(
@@ -17,8 +16,8 @@ def main():
         # track hyperparameters and run metadata
         config={
             "learning_rate": LEARNING_RATE,
-            "architecture": "MLP-SiLU-single-width",
-            "loss": "correction-loss",
+            "architecture": "MLP-SiLU-single-width-output-act",
+            "loss": "field-loss",
             "dataset": "data/isotropic_chi",
             "epochs": EPOCHS,
             "batch_size": BATCH_SIZE,
@@ -30,7 +29,7 @@ def main():
         batch_size=BATCH_SIZE,
         learning_rate=LEARNING_RATE,
         data_dir=DATA_DIR,
-        save_path=SAVE_PATH,
+        save_path=f"results/{wandb.run.name if wandb.run is not None else str(datetime.datetime.now())}",
         log=True,
     )
 

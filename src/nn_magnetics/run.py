@@ -8,17 +8,14 @@ from torch.optim.adam import Adam
 from torch.utils.data import DataLoader
 
 import wandb
-from nn_magnetics.dataset import ChiMode, DemagData, get_data_parallel, get_one_magnet
+from nn_magnetics.dataset import ChiMode, DemagData, get_data_parallel
 from nn_magnetics.model import FieldLoss, Network, CorrectionLoss
 from nn_magnetics.plotting import (
-    plot_heatmaps_amplitude,
-    plot_heatmaps_angle,
+    plot_heatmaps,
     plot_histograms,
     plot_loss,
 )
 from nn_magnetics.train import (
-    calculate_metrics,
-    calculate_metrics_baseline,
     test_one_epoch,
     train_one_epoch,
     validate,
@@ -28,53 +25,6 @@ torch.manual_seed(0)
 np.random.seed(0)
 
 DEVICE = "cpu"
-
-
-def plot_heatmaps(model, save_path, epoch):
-    X, B = get_one_magnet(
-        chi_mode=ChiMode.ISOTROPIC,
-        data=np.load("data/isotropic_chi/eval/data_1.npz"),
-    )
-
-    grid = X[:, 3:]
-    a = float(X[0, 0])
-    b = float(X[0, 1])
-    chi = float(X[0, 2])
-
-    with torch.no_grad():
-        B_pred = model(torch.tensor(X))
-
-    angle_errors_baseline, amplitude_errors_baseline = calculate_metrics_baseline(
-        B=B,
-        return_abs=False,
-    )
-    angle_errors_trained, amplitude_errors_trained = calculate_metrics(
-        B=torch.tensor(B),
-        B_pred=B_pred,
-        return_abs=False,
-    )
-
-    plot_heatmaps_amplitude(
-        grid=grid,
-        amplitude_errors_baseline=amplitude_errors_baseline,
-        amplitude_errors_trained=amplitude_errors_trained,
-        a=a,
-        b=b,
-        chi=chi,
-        epoch=epoch,
-        save_path=save_path,
-    )
-
-    plot_heatmaps_angle(
-        grid=grid,
-        angle_errors_baseline=angle_errors_baseline,
-        angle_errors_trained=angle_errors_trained,
-        a=a,
-        b=b,
-        chi=chi,
-        epoch=epoch,
-        save_path=save_path,
-    )
 
 
 def run(epochs, batch_size, learning_rate, data_dir, save_path, log=False):
@@ -115,7 +65,7 @@ def run(epochs, batch_size, learning_rate, data_dir, save_path, log=False):
         shuffle=True,
     )
 
-    criterion = CorrectionLoss()
+    criterion = FieldLoss()
 
     model = Network(
         in_features=6,
@@ -123,6 +73,9 @@ def run(epochs, batch_size, learning_rate, data_dir, save_path, log=False):
         out_features=3,
         activation=F.silu,
     )
+
+    if wandb.run is not None:
+        wandb.watch(model, log="all")
 
     opt = Adam(params=model.parameters(), lr=learning_rate)
 

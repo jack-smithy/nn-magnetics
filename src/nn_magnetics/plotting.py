@@ -1,9 +1,14 @@
 import json
 from typing import Dict
 
+import torch
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import colors, patches
+
+from nn_magnetics.cmaps import CMAP_ANGLE, CMAP_AMPLITUDE
+from nn_magnetics.dataset import ChiMode, get_one_magnet
+from nn_magnetics.train import calculate_metrics, calculate_metrics_baseline
 
 
 def plot_loss(stats: Dict, save_path: str | None = None, show_plot: bool = False):
@@ -207,7 +212,7 @@ def plot_heatmaps_amplitude(
         z_edges,
         heatmap_amplitude_trained.T,
         shading="auto",
-        cmap="seismic",
+        cmap=CMAP_AMPLITUDE,
         norm=norm_amplitude,
     )
 
@@ -229,7 +234,7 @@ def plot_heatmaps_amplitude(
         z_edges,
         heatmap_amplitude_baseline.T,
         shading="auto",
-        cmap="seismic",
+        cmap=CMAP_AMPLITUDE,
         norm=norm_amplitude,
     )
 
@@ -324,7 +329,7 @@ def plot_heatmaps_angle(
         z_edges,
         heatmap_angle_trained.T,
         shading="auto",
-        cmap="Reds",
+        cmap=CMAP_ANGLE,
     )
     # axs[0].quiver(x_slice, z_slice, Bx, Bz)
     axs[0].set_xlabel("X (mm)")
@@ -346,7 +351,7 @@ def plot_heatmaps_angle(
         z_edges,
         heatmap_amplitude_baseline.T,
         shading="auto",
-        cmap="Reds",
+        cmap=CMAP_ANGLE,
     )
     # axs[1].quiver(x_slice, z_slice, Bx_pred, Bz_pred)
     axs[1].set_xlabel("X (mm)")
@@ -370,3 +375,55 @@ def plot_heatmaps_angle(
 
     if show_plot:
         plt.show()
+
+
+def plot_heatmaps(
+    model,
+    save_path,
+    epoch,
+    eval_path="data/isotropic_chi/eval/data_1.npz",
+):
+    X, B = get_one_magnet(
+        chi_mode=ChiMode.ISOTROPIC,
+        data=np.load(eval_path),
+    )
+
+    grid = X[:, 3:]
+    a = float(X[0, 0])
+    b = float(X[0, 1])
+    chi = float(X[0, 2])
+
+    with torch.no_grad():
+        B_pred = model(torch.tensor(X))
+
+    angle_errors_baseline, amplitude_errors_baseline = calculate_metrics_baseline(
+        B=B,
+        return_abs=False,
+    )
+    angle_errors_trained, amplitude_errors_trained = calculate_metrics(
+        B=torch.tensor(B),
+        B_pred=B_pred,
+        return_abs=False,
+    )
+
+    plot_heatmaps_amplitude(
+        grid=grid,
+        amplitude_errors_baseline=amplitude_errors_baseline,
+        amplitude_errors_trained=amplitude_errors_trained,
+        a=a,
+        b=b,
+        chi=chi,
+        epoch=epoch,
+        save_path=save_path,
+    )
+
+    plot_heatmaps_angle(
+        grid=grid,
+        angle_errors_baseline=angle_errors_baseline,
+        angle_errors_trained=angle_errors_trained,
+        a=a,
+        b=b,
+        chi=chi,
+        epoch=epoch,
+        save_path=save_path,
+    )
