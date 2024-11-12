@@ -6,7 +6,7 @@ from torch import nn
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 
-from src.utils import angle_error, relative_amplitude_error
+from nn_magnetics.utils import angle_error, relative_amplitude_error
 
 
 def calculate_metrics(B: torch.Tensor, B_pred: torch.Tensor, return_abs=True):

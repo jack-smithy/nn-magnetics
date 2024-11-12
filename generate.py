@@ -1,5 +1,5 @@
 import numpy as np
-from src.create_data import simulate_demag
+from nn_magnetics.create_data import simulate_demag
 
 
 def simulate_task(index):

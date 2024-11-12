@@ -8,7 +8,7 @@ import numpy.linalg as LA
 from matplotlib import colormaps, colors, patches
 from scipy.interpolate import griddata
 
-from src.utils import angle_error, relative_amplitude_error
+from nn_magnetics.utils import angle_error, relative_amplitude_error
 
 
 def plot_loss(stats: Dict, save_path: str | None = None, show_plot: bool = False):

@@ -1,6 +1,6 @@
 import datetime
 
-from src import run
+from nn_magnetics import run
 
 
 def main():

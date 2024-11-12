@@ -8,15 +8,15 @@ from torch.optim.adam import Adam
 from torch.utils.data import DataLoader
 
 import wandb
-from src.dataset import ChiMode, DemagData, get_data_parallel, get_one_magnet
-from src.model import Network, FieldLoss
-from src.plotting import (
+from nn_magnetics.dataset import ChiMode, DemagData, get_data_parallel, get_one_magnet
+from nn_magnetics.model import Network, FieldLoss
+from nn_magnetics.plotting import (
     plot_histograms,
     plot_loss,
     plot_heatmaps_amplitude,
     plot_heatmaps_angle,
 )
-from src.train import (
+from nn_magnetics.train import (
     test_one_epoch,
     train_one_epoch,
     validate,

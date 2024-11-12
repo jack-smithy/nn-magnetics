@@ -1,6 +1,6 @@
 import torch
 import time
-from src.model import Network
+from nn_magnetics.model import Network
 
 torch.set_default_dtype(torch.float32)
 
