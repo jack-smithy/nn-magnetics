@@ -9,19 +9,19 @@ from torch.utils.data import DataLoader
 
 import wandb
 from nn_magnetics.dataset import ChiMode, DemagData, get_data_parallel, get_one_magnet
-from nn_magnetics.model import Network, FieldLoss
+from nn_magnetics.model import FieldLoss, Network, CorrectionLoss
 from nn_magnetics.plotting import (
-    plot_histograms,
-    plot_loss,
     plot_heatmaps_amplitude,
     plot_heatmaps_angle,
+    plot_histograms,
+    plot_loss,
 )
 from nn_magnetics.train import (
+    calculate_metrics,
+    calculate_metrics_baseline,
     test_one_epoch,
     train_one_epoch,
     validate,
-    calculate_metrics,
-    calculate_metrics_baseline,
 )
 
 torch.manual_seed(0)
@@ -90,24 +90,10 @@ def run(epochs, batch_size, learning_rate, data_dir, save_path, log=False):
         },
     }
 
-    if log:
-        wandb.init(
-            # set the wandb project where this run will be logged
-            project="test-isotropic-correction-loss",
-            # track hyperparameters and run metadata
-            config={
-                "learning_rate": learning_rate,
-                "architecture": "MLP-SiLU-double-width",
-                "dataset": "data/",
-                "epochs": epochs,
-                "batch_size": batch_size,
-            },
-        )
-
     os.makedirs(save_path)
 
-    X_train, B_train = get_data_parallel(f"{data_dir}/train_fast", ChiMode.ISOTROPIC)
-    X_test, B_test = get_data_parallel(f"{data_dir}/test_fast", ChiMode.ISOTROPIC)
+    X_train, B_train = get_data_parallel(f"{data_dir}/train", ChiMode.ISOTROPIC)
+    X_test, B_test = get_data_parallel(f"{data_dir}/test", ChiMode.ISOTROPIC)
 
     train_dataloader = DataLoader(
         dataset=DemagData(
@@ -116,7 +102,7 @@ def run(epochs, batch_size, learning_rate, data_dir, save_path, log=False):
             device=DEVICE,
         ),
         batch_size=batch_size,
-        shuffle=False,
+        shuffle=True,
     )
 
     test_dataloader = DataLoader(
@@ -129,11 +115,11 @@ def run(epochs, batch_size, learning_rate, data_dir, save_path, log=False):
         shuffle=True,
     )
 
-    criterion = FieldLoss()
+    criterion = CorrectionLoss()
 
     model = Network(
         in_features=6,
-        hidden_dim_factor=12,
+        hidden_dim_factor=6,
         out_features=3,
         activation=F.silu,
     )
@@ -159,7 +145,7 @@ def run(epochs, batch_size, learning_rate, data_dir, save_path, log=False):
         training_stats["angle_error"].append(test_angle_err)
         training_stats["amplitude_error"].append(test_amp_err)
 
-        if log:
+        if wandb.run is not None:
             wandb.log(
                 {
                     "train_loss": train_loss,
