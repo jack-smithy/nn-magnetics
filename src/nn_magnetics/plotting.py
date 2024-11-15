@@ -7,7 +7,7 @@ import numpy as np
 from matplotlib import colors, patches
 
 from nn_magnetics.utils.cmaps import CMAP_ANGLE, CMAP_AMPLITUDE
-from nn_magnetics.dataset import ChiMode, get_one_magnet
+from nn_magnetics.dataset import get_one_magnet, ChiMode
 from nn_magnetics.validate import validate
 from nn_magnetics.utils.metrics import calculate_metrics, calculate_metrics_baseline
 
@@ -72,7 +72,7 @@ def _plot_histograms(
 
     ax[1, 0].hist(
         stats["angle_errors"],
-        bins=10,
+        bins=20,
         label=f"Avg Error: {round(mean_angle, 2)} degrees",
     )
     ax[1, 0].set_xlabel("Mean Angle Error (degrees)")
@@ -81,7 +81,7 @@ def _plot_histograms(
 
     ax[1, 1].hist(
         stats["amp_errors"],
-        bins=10,
+        bins=20,
         label=f"Avg Error: {round(mean_amp, 2)}%",
     )
     ax[1, 1].set_xlabel("Mean Relative Amplitude Error (%)")
@@ -400,17 +400,20 @@ def plot_heatmaps_angle(
 
 
 def plot_heatmaps(
-    model,
-    save_path,
-    tag,
-    eval_path="data/anisotropic_chi/test_anisotropic/data_1.npz",
+    model: torch.nn.Module,
+    save_path: str,
+    tag: str,
+    chi_mode: ChiMode,
+    eval_path: str,
 ):
     X, B = get_one_magnet(
-        chi_mode=ChiMode.ANISOTROPIC,
+        chi_mode=chi_mode,
         data=np.load(eval_path),
     )
 
-    grid = X[:, 4:]
+    grid_start_idx = 3 if chi_mode.value == ChiMode.ISOTROPIC.value else 4
+
+    grid = X[:, grid_start_idx:]
     a = float(X[0, 0])
     b = float(X[0, 1])
 

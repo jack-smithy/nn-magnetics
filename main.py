@@ -1,34 +1,67 @@
+from __future__ import annotations
+
 import datetime
-
+from dataclasses import dataclass
+from typing import Literal
 import wandb
-from nn_magnetics import train, evaluate
+
+from nn_magnetics import (
+    train_isotropic,
+    evaluate_isotropic,
+    train_anisotropic,
+    evaluate_anisotropic,
+)
 
 
-def main():
-    project = "anisotropic_chi_test"
-    name = wandb.run.name if wandb.run is not None else str(datetime.datetime.now())
+@dataclass
+class ModelConfig:
+    """Configuration for the ML model and training process."""
 
-    config = {
-        "learning_rate": 0.004,
-        "architecture": "MLP",
-        "hidden_dim_factor": 6,
-        "activation": "SiLU",
-        "loss_fn": "field",
-        "data_dir": "data/anisotropic_chi",
-        "epochs": 10,
-        "batch_size": 256,
-        "gamma": 0.9,
-        "save_path": f"results/{project}/{name}",
-    }
+    learning_rate: float
+    architecture: Literal["MLP"]
+    hidden_dim_factor: int
+    activation: Literal["SiLU"]
+    loss_fn: Literal["field", "correction"]
+    data_dir: str
+    epochs: int
+    batch_size: int
+    gamma: float
+    save_path: str
 
-    if False:
-        wandb.init(
-            project=project,
-            config=config,
-        )
 
-    train(config)
-    evaluate(config)
+def setup_wandb(project_name: str, config: ModelConfig) -> None:
+    """Initialize Weights & Biases tracking."""
+    wandb.init(project=project_name, config=config.__dict__)
+    if wandb.run is not None:
+        run_specific_path = f"results/{project_name}/{wandb.run.name}"
+        wandb.config.update({"save_path": wandb.run.name}, allow_val_change=True)
+        config.save_path = run_specific_path
+
+
+def run_experiment(config: ModelConfig) -> None:
+    """Run the training and evaluation pipeline."""
+    train_anisotropic(config.__dict__)
+    evaluate_anisotropic(config.__dict__)
+
+
+def main() -> None:
+    project_name = "anisotropic_chi_v2"
+    timestamp = str(datetime.datetime.now())
+    config = ModelConfig(
+        learning_rate=0.004,
+        architecture="MLP",
+        hidden_dim_factor=6,
+        activation="SiLU",
+        loss_fn="field",
+        data_dir="data/anisotropic_chi",
+        epochs=2,
+        batch_size=256,
+        gamma=0.95,
+        save_path=f"results/{project_name}/{timestamp}",
+    )
+
+    setup_wandb(project_name, config)
+    run_experiment(config)
 
 
 if __name__ == "__main__":

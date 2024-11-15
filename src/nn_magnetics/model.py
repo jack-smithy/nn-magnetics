@@ -40,7 +40,7 @@ class Network(nn.Module):
             in_features=1 * hidden_dim_factor,
             out_features=out_features,
         )
-        self.activation = kwargs.get("activation", F.relu)
+        self.activation = kwargs.get("activation", F.silu)
 
     def forward(self, x):
         x = self.activation(self.linear1(x))
