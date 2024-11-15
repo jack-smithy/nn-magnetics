@@ -401,7 +401,7 @@ def plot_heatmaps_angle(
 
 def plot_heatmaps(
     model: torch.nn.Module,
-    save_path: str,
+    save_path: str | None,
     tag: str,
     chi_mode: ChiMode,
     eval_path: str,
