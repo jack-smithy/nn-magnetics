@@ -1,43 +1,8 @@
+from typing import Type, Literal
+
+import torch
 import torch.nn.functional as F
 from torch import nn
-import torch
-from typing import Type
-
-torch.set_default_dtype(torch.float64)
-
-
-class AmplitudeCorrection(nn.Module):
-    def __init__(
-        self, in_features: int, hidden_dim_factor: int, *args, **kwargs
-    ) -> None:
-        super().__init__(*args, **kwargs)
-
-        self.linear1 = nn.Linear(
-            in_features=in_features,
-            out_features=4 * hidden_dim_factor,
-        )
-        self.linear2 = nn.Linear(
-            in_features=4 * hidden_dim_factor,
-            out_features=8 * hidden_dim_factor,
-        )
-        self.linear3 = nn.Linear(
-            in_features=8 * hidden_dim_factor,
-            out_features=4 * hidden_dim_factor,
-        )
-        self.linear4 = nn.Linear(
-            in_features=4 * hidden_dim_factor,
-            out_features=hidden_dim_factor,
-        )
-        self.output = nn.Linear(in_features=hidden_dim_factor, out_features=1)
-
-        self.activation = kwargs.get("activation", F.relu)
-
-    def forward(self, x):
-        x = self.activation(self.linear1(x))
-        x = self.activation(self.linear2(x))
-        x = self.activation(self.linear3(x))
-        x = self.activation(self.linear4(x))
-        return self.activation(self.output(x))
 
 
 class Network(nn.Module):
@@ -92,10 +57,8 @@ class CorrectionLoss(nn.Module):
         self.loss = loss()
 
     def forward(self, B, B_pred):
-        B_demag = B[..., :3]
-        B_ana = B[..., 3:]
-
-        return self.loss(B_demag / B_ana, B_pred)
+        B_demag, B_reduced = B[..., :3], B[..., 3:]
+        return self.loss(B_demag / B_reduced, B_pred)
 
 
 class FieldLoss(nn.Module):
@@ -104,10 +67,17 @@ class FieldLoss(nn.Module):
         self.loss = loss()
 
     def forward(self, B, B_pred):
-        B_demag = B[..., :3]
-        B_ana = B[..., 3:]
+        B_demag, B_reduced = B[..., :3], B[..., 3:]
+        return self.loss(B_demag, B_pred * B_reduced)
 
-        return self.loss(B_demag, B_pred * B_ana)
+
+def get_loss(name: Literal["field", "correction"]) -> Type[nn.Module]:
+    if name == "field":
+        return FieldLoss
+    elif name == "correction":
+        return CorrectionLoss
+    else:
+        raise ValueError(f"Invalid loss function: {name}")
 
 
 def get_num_params(model: torch.nn.Module, trainable_only: bool = False) -> int:

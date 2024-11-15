@@ -1,38 +1,34 @@
 import datetime
 
 import wandb
-from nn_magnetics import run
+from nn_magnetics import train, evaluate
 
 
 def main():
-    EPOCHS = 50
-    BATCH_SIZE = 128
-    LEARNING_RATE = 1e-4
-    DATA_DIR = "data/anisotropic_chi"
+    project = "anisotropic_chi_test"
+    name = wandb.run.name if wandb.run is not None else str(datetime.datetime.now())
 
-    if True:
+    config = {
+        "learning_rate": 0.004,
+        "architecture": "MLP",
+        "hidden_dim_factor": 6,
+        "activation": "SiLU",
+        "loss_fn": "field",
+        "data_dir": "data/anisotropic_chi",
+        "epochs": 10,
+        "batch_size": 256,
+        "gamma": 0.9,
+        "save_path": f"results/{project}/{name}",
+    }
+
+    if False:
         wandb.init(
-            # set the wandb project where this run will be logged
-            project="anisotropic-chi",
-            # track hyperparameters and run metadata
-            config={
-                "learning_rate": LEARNING_RATE,
-                "architecture": "MLP-single-width",
-                "activation": "SiLU",
-                "loss": "field-loss",
-                "dataset": "data/isotropic_chi",
-                "epochs": EPOCHS,
-                "batch_size": BATCH_SIZE,
-            },
+            project=project,
+            config=config,
         )
 
-    run(
-        epochs=EPOCHS,
-        batch_size=BATCH_SIZE,
-        learning_rate=LEARNING_RATE,
-        data_dir=DATA_DIR,
-        save_path=f"results/{wandb.run.name if wandb.run is not None else str(datetime.datetime.now())}",
-    )
+    train(config)
+    evaluate(config)
 
 
 if __name__ == "__main__":

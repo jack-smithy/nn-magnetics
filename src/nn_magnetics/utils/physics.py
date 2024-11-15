@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 
 def demagnetizing_factor(a, b, c):
@@ -25,3 +26,68 @@ def demagnetizing_factor(a, b, c):
         )
         / (3 * a * b * c)
     )
+
+
+def batch_rotation_matrices(angles: torch.Tensor) -> torch.Tensor:
+    alpha = angles.T[0]
+    beta = angles.T[1]
+    gamma = angles.T[2]
+
+    # Calculate cosines and sines of the angles
+    cos_alpha = torch.cos(alpha)
+    sin_alpha = torch.sin(alpha)
+    cos_beta = torch.cos(beta)
+    sin_beta = torch.sin(beta)
+    cos_gamma = torch.cos(gamma)
+    sin_gamma = torch.sin(gamma)
+
+    # Construct rotation matrices for each axis in batch form
+    Rx = torch.stack(
+        [
+            torch.ones_like(alpha),
+            torch.zeros_like(alpha),
+            torch.zeros_like(alpha),
+            torch.zeros_like(alpha),
+            cos_alpha,
+            -sin_alpha,
+            torch.zeros_like(alpha),
+            sin_alpha,
+            cos_alpha,
+        ],
+        dim=-1,
+    ).reshape(-1, 3, 3)
+
+    Ry = torch.stack(
+        [
+            cos_beta,
+            torch.zeros_like(beta),
+            sin_beta,
+            torch.zeros_like(beta),
+            torch.ones_like(beta),
+            torch.zeros_like(beta),
+            -sin_beta,
+            torch.zeros_like(beta),
+            cos_beta,
+        ],
+        dim=-1,
+    ).reshape(-1, 3, 3)
+
+    Rz = torch.stack(
+        [
+            cos_gamma,
+            -sin_gamma,
+            torch.zeros_like(gamma),
+            sin_gamma,
+            cos_gamma,
+            torch.zeros_like(gamma),
+            torch.zeros_like(gamma),
+            torch.zeros_like(gamma),
+            torch.ones_like(gamma),
+        ],
+        dim=-1,
+    ).reshape(-1, 3, 3)
+
+    # Combine rotations by matrix multiplication: Rz * Ry * Rx
+    rotation_matrices = torch.matmul(Rz, torch.matmul(Ry, Rx))
+
+    return rotation_matrices

@@ -16,10 +16,10 @@ def simulate_task(index):
 
     print(f"Starting simuation: {index}")
     data = simulate_demag(a, b, chi)
-    path = f"data/anisotropic_chi/test_isotropic/data_{index}.npz"
+    path = f"data/anisotropic_chi/eval/data_{index}.npz"
     np.savez(path, **data)
 
 
 if __name__ == "__main__":
-    for idx in range(1, 250):
+    for idx in range(2, 3):
         simulate_task(idx)

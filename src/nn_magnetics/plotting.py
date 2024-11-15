@@ -6,9 +6,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import colors, patches
 
-from nn_magnetics.cmaps import CMAP_ANGLE, CMAP_AMPLITUDE
+from nn_magnetics.utils.cmaps import CMAP_ANGLE, CMAP_AMPLITUDE
 from nn_magnetics.dataset import ChiMode, get_one_magnet
-from nn_magnetics.train import calculate_metrics, calculate_metrics_baseline
+from nn_magnetics.validate import validate
+from nn_magnetics.utils.metrics import calculate_metrics, calculate_metrics_baseline
 
 
 def plot_loss(stats: Dict, save_path: str | None = None, show_plot: bool = False):
@@ -42,8 +43,12 @@ def plot_loss(stats: Dict, save_path: str | None = None, show_plot: bool = False
         plt.show()
 
 
-def plot_histograms(stats: Dict, save_path: str | None, show_plot: bool):
-    fig, ax = plt.subplots(ncols=2, nrows=2, figsize=(10, 10))
+def _plot_histograms(
+    stats: Dict, save_path: str | None, show_plot: bool, tag: str = ""
+):
+    fig, ax = plt.subplots(
+        ncols=2, nrows=2, figsize=(10, 10), sharex="col", sharey="col"
+    )
 
     mean_angle_baseline = np.mean(stats["angle_errors_baseline"])
     mean_amp_baseline = np.mean(stats["amp_errors_baseline"])
@@ -67,27 +72,49 @@ def plot_histograms(stats: Dict, save_path: str | None, show_plot: bool):
 
     ax[1, 0].hist(
         stats["angle_errors"],
-        bins=20,
+        bins=10,
         label=f"Avg Error: {round(mean_angle, 2)} degrees",
     )
-    ax[1, 0].set_xlabel("Angle Error")
+    ax[1, 0].set_xlabel("Mean Angle Error (degrees)")
     ax[1, 0].set_ylabel("Count (NN Correction)")
     ax[1, 0].legend()
 
     ax[1, 1].hist(
-        stats["amp_errors"], bins=20, label=f"Avg Error: {round(mean_amp, 2)}%"
+        stats["amp_errors"],
+        bins=10,
+        label=f"Avg Error: {round(mean_amp, 2)}%",
     )
-    ax[1, 1].set_xlabel("Relative Amplitude Error")
+    ax[1, 1].set_xlabel("Mean Relative Amplitude Error (%)")
     ax[1, 1].legend()
+
+    plt.suptitle("Mean Errors Per Magnet")
 
     if save_path is not None:
         with open(f"{save_path}/val_stats.json", "w+") as f:
             json.dump(stats, f)
 
-        plt.savefig(f"{save_path}/hist.png", format="png")
+        plt.savefig(f"{save_path}/hist_{tag}.png", format="png")
 
     if show_plot:
         plt.show()
+
+
+def plot_histograms(
+    X_test: np.ndarray,
+    B_test: np.ndarray,
+    model: torch.nn.Module,
+    save_path: str | None = None,
+    show_plot: bool = False,
+    tag: str = "",
+):
+    val_stats = validate(X_test, B_test, model)
+
+    _plot_histograms(
+        val_stats,
+        save_path=save_path,
+        show_plot=show_plot,
+        tag=tag,
+    )
 
 
 def plot_baseline_histograms(
@@ -120,9 +147,6 @@ def plot_baseline_histograms(
     ax[0].set_xlabel("Mean Relative Amplitude Error")
 
     if save_path is not None:
-        with open(f"{save_path}/val_stats.json", "w+") as f:
-            json.dump(stats, f)
-
         plt.savefig(f"{save_path}/hist.png", format="png")
 
     if show_plot:
@@ -135,7 +159,7 @@ def plot_heatmaps_amplitude(
     amplitude_errors_trained,
     a,
     b,
-    epoch,
+    tag,
     save_path=None,
     show_plot=False,
 ):
@@ -204,7 +228,7 @@ def plot_heatmaps_amplitude(
         where=heatmap_counts_amplitude_baseline != 0,
     )
 
-    fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(6, 7))
+    fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(6, 6))
 
     mesh = axs[0].pcolormesh(
         x_edges,
@@ -254,7 +278,7 @@ def plot_heatmaps_amplitude(
     cbar.set_label("Relative Amplitude Error (%)")
 
     if save_path is not None:
-        plt.savefig(f"{save_path}/heatmap_amplitude_epoch_{epoch}.png", format="png")
+        plt.savefig(f"{save_path}/heatmap_amplitude_{tag}.png", format="png")
 
     if show_plot:
         plt.show()
@@ -266,7 +290,7 @@ def plot_heatmaps_angle(
     angle_errors_trained,
     a,
     b,
-    epoch,
+    tag,
     save_path=None,
     show_plot=False,
 ):
@@ -320,7 +344,7 @@ def plot_heatmaps_angle(
     )
 
     # Plot the heatmap
-    fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(6, 7))
+    fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(6, 6))
 
     mesh = axs[0].pcolormesh(
         x_edges,
@@ -369,7 +393,7 @@ def plot_heatmaps_angle(
     cbar.set_label("Angle Error (°)")
 
     if save_path is not None:
-        plt.savefig(f"{save_path}/heatmap_angle_epoch_{epoch}.png", format="png")
+        plt.savefig(f"{save_path}/heatmap_angle_{tag}.png", format="png")
 
     if show_plot:
         plt.show()
@@ -378,8 +402,8 @@ def plot_heatmaps_angle(
 def plot_heatmaps(
     model,
     save_path,
-    epoch,
-    eval_path="data/anisotropic_chi/eval/data_1.npz",
+    tag,
+    eval_path="data/anisotropic_chi/test_anisotropic/data_1.npz",
 ):
     X, B = get_one_magnet(
         chi_mode=ChiMode.ANISOTROPIC,
@@ -409,7 +433,7 @@ def plot_heatmaps(
         amplitude_errors_trained=amplitude_errors_trained,
         a=a,
         b=b,
-        epoch=epoch,
+        tag=tag,
         save_path=save_path,
     )
 
@@ -419,6 +443,6 @@ def plot_heatmaps(
         angle_errors_trained=angle_errors_trained,
         a=a,
         b=b,
-        epoch=epoch,
+        tag=tag,
         save_path=save_path,
     )
