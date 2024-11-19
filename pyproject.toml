@@ -18,6 +18,8 @@ dependencies = [
     "nbformat>=5.10.4",
     "scipy>=1.14.1",
     "scienceplots>=2.1.1",
+    "wakepy>=0.10.1",
+    "tool>=0.8.0",
 ]
 
 [build-system]

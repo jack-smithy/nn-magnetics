@@ -418,15 +418,15 @@ def plot_heatmaps(
     b = float(X[0, 1])
 
     with torch.no_grad():
-        B_pred = model(torch.tensor(X))
+        preds = model(torch.tensor(X))
 
     angle_errors_baseline, amplitude_errors_baseline = calculate_metrics_baseline(
         B=B,
         return_abs=False,
     )
     angle_errors_trained, amplitude_errors_trained = calculate_metrics(
-        B=torch.tensor(B),
-        B_pred=B_pred,
+        B=B,
+        B_pred=preds,
         return_abs=False,
     )
 

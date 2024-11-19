@@ -4,6 +4,7 @@ import datetime
 from dataclasses import dataclass
 from typing import Literal
 import wandb
+from wakepy import keep
 
 from nn_magnetics import (
     train_isotropic,
@@ -21,7 +22,7 @@ class ModelConfig:
     architecture: Literal["MLP"]
     hidden_dim_factor: int
     activation: Literal["SiLU"]
-    loss_fn: Literal["field", "correction"]
+    loss_fn: Literal["field", "correction", "amplitude"]
     data_dir: str
     epochs: int
     batch_size: int
@@ -40,22 +41,22 @@ def setup_wandb(project_name: str, config: ModelConfig) -> None:
 
 def run_experiment(config: ModelConfig) -> None:
     """Run the training and evaluation pipeline."""
-    train_anisotropic(config.__dict__)
-    evaluate_anisotropic(config.__dict__)
+    train_isotropic(config.__dict__)
+    evaluate_isotropic(config.__dict__)
 
 
 def main() -> None:
-    project_name = "anisotropic_chi_v2"
+    project_name = "isotropic_chi_amplitude_correction"
     timestamp = str(datetime.datetime.now())
     config = ModelConfig(
-        learning_rate=0.004,
+        learning_rate=0.001,
         architecture="MLP",
         hidden_dim_factor=6,
         activation="SiLU",
-        loss_fn="field",
-        data_dir="data/anisotropic_chi",
-        epochs=2,
-        batch_size=256,
+        loss_fn="amplitude",
+        data_dir="data/isotropic_chi",
+        epochs=30,
+        batch_size=128,
         gamma=0.95,
         save_path=f"results/{project_name}/{timestamp}",
     )
@@ -65,4 +66,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    with keep.running():
+        main()

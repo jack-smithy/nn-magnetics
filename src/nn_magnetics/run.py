@@ -125,7 +125,7 @@ def train_isotropic(config):
     model = Network(
         in_features=6,
         hidden_dim_factor=config["hidden_dim_factor"],
-        out_features=3,
+        out_features=1,
         activation=F.silu,
     ).to(DEVICE, dtype=torch.float64)
 
@@ -286,7 +286,7 @@ def evaluate_isotropic(config):
     model = Network(
         in_features=6,
         hidden_dim_factor=config["hidden_dim_factor"],
-        out_features=3,
+        out_features=1,
     ).to(DEVICE, dtype=torch.float64)
 
     model.load_state_dict(

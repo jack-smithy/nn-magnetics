@@ -2,6 +2,8 @@ from typing import Tuple
 import numpy as np
 import torch
 
+from nn_magnetics.corrections import field_correction, no_op, amplitude_correction
+
 eps = 1e-10
 
 
@@ -54,25 +56,31 @@ def calculate_metrics_baseline(
     B: np.ndarray,
     return_abs=True,
 ) -> Tuple[np.ndarray, ...]:
-    B_demag = B[..., :3]
-    B_ana = B[..., 3:]
+    B_true, B_reduced = no_op(B)
 
-    angle_errors = angle_error(B_ana, B_demag)
+    angle_errors = angle_error(B_true, B_reduced)
     amplitude_errors = relative_amplitude_error(
-        B_ana,
-        B_demag,
+        B_true,
+        B_reduced,
         return_abs=return_abs,
     )
 
     return angle_errors, amplitude_errors
 
 
-def calculate_metrics(B: torch.Tensor, B_pred: torch.Tensor, return_abs=True):
-    B_demag = B[..., :3].numpy()
-    B_ana = B[..., 3:].numpy()
+def calculate_metrics(B: np.ndarray, B_pred: np.ndarray, return_abs=True):
+    if isinstance(B, torch.Tensor):
+        B = B.numpy()
 
-    batch_angle_errors = angle_error(B_demag, B_pred.numpy() * B_ana)
+    if isinstance(B_pred, torch.Tensor):
+        B_pred = B_pred.numpy()
+
+    B_true, B_corrected = amplitude_correction(B, B_pred)
+
+    batch_angle_errors = angle_error(B_true, B_corrected)
     batch_amplitude_errors = relative_amplitude_error(
-        B_demag, B_pred.numpy() * B_ana, return_abs=return_abs
+        B_true,
+        B_corrected,
+        return_abs=return_abs,
     )
     return batch_angle_errors, batch_amplitude_errors

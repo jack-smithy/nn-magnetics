@@ -15,10 +15,10 @@ def validate(X_test, B_test, model):
     with torch.no_grad():
         for X, B in zip(torch.from_numpy(X_test), torch.from_numpy(B_test)):
             B_pred = model(X)
+            B = B.numpy()
+            B_pred = B_pred.numpy()
 
-            angle_errs_baseline, amp_errs_baseline = calculate_metrics_baseline(
-                B.numpy()
-            )
+            angle_errs_baseline, amp_errs_baseline = calculate_metrics_baseline(B)
             avg_angle_errors_baseline.append(np.mean(angle_errs_baseline, axis=0))
             avg_amp_errors_baseline.append(np.mean(amp_errs_baseline, axis=0))
 
