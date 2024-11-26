@@ -1,6 +1,6 @@
 import os
 from copy import deepcopy
-from typing import Tuple
+from typing import Tuple, Dict
 
 import numpy as np
 import torch
@@ -13,12 +13,12 @@ from torch.optim.adam import Adam
 from torch.utils.data import DataLoader
 
 import wandb
-from nn_magnetics.dataset import ChiMode, DemagData, get_data_parallel
-from nn_magnetics.model import (
+from nn_magnetics.data.dataset import ChiMode, DemagData, get_data_parallel
+from nn_magnetics.pytorch.model import (
     Network,
     get_loss,
 )
-from nn_magnetics.plotting import (
+from nn_magnetics.utils.plotting import (
     plot_heatmaps,
     plot_histograms,
     plot_loss,
@@ -79,7 +79,7 @@ def _test_one_epoch(
     )
 
 
-def train_isotropic(config):
+def train_isotropic(config: Dict):
     training_stats = {
         "train_loss": [],
         "test_loss": [],
@@ -125,7 +125,7 @@ def train_isotropic(config):
     model = Network(
         in_features=6,
         hidden_dim_factor=config["hidden_dim_factor"],
-        out_features=1,
+        out_features=3,
         activation=F.silu,
     ).to(DEVICE, dtype=torch.float64)
 
@@ -177,7 +177,7 @@ def train_isotropic(config):
     torch.save(best_weights, f"{config["save_path"]}/weights.pt")
 
 
-def train_anisotropic(config):
+def train_anisotropic(config: Dict):
     training_stats = {
         "train_loss": [],
         "test_loss": [],
@@ -275,7 +275,7 @@ def train_anisotropic(config):
     torch.save(best_weights, f"{config["save_path"]}/weights.pt")
 
 
-def evaluate_isotropic(config):
+def evaluate_isotropic(config: Dict):
     print("Evaluating model for isotropic chi")
 
     X_test, B_test = get_data_parallel(
@@ -286,7 +286,7 @@ def evaluate_isotropic(config):
     model = Network(
         in_features=6,
         hidden_dim_factor=config["hidden_dim_factor"],
-        out_features=1,
+        out_features=3,
     ).to(DEVICE, dtype=torch.float64)
 
     model.load_state_dict(
@@ -314,7 +314,7 @@ def evaluate_isotropic(config):
     )
 
 
-def evaluate_anisotropic(config):
+def evaluate_anisotropic(config: Dict):
     print("Evaluating model for anisotropic chi")
 
     X_test, B_test = get_data_parallel(

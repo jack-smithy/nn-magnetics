@@ -2,7 +2,7 @@ from typing import Tuple
 import numpy as np
 import torch
 
-from nn_magnetics.corrections import field_correction, no_op, amplitude_correction
+from nn_magnetics.pytorch.corrections import field_correction, no_op
 
 eps = 1e-10
 
@@ -75,7 +75,7 @@ def calculate_metrics(B: np.ndarray, B_pred: np.ndarray, return_abs=True):
     if isinstance(B_pred, torch.Tensor):
         B_pred = B_pred.numpy()
 
-    B_true, B_corrected = amplitude_correction(B, B_pred)
+    B_true, B_corrected = field_correction(B, B_pred)
 
     batch_angle_errors = angle_error(B_true, B_corrected)
     batch_amplitude_errors = relative_amplitude_error(

@@ -3,33 +3,37 @@ from typing import Dict
 
 import torch
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 import numpy as np
 from matplotlib import colors, patches
 
 from nn_magnetics.utils.cmaps import CMAP_ANGLE, CMAP_AMPLITUDE
-from nn_magnetics.dataset import get_one_magnet, ChiMode
-from nn_magnetics.validate import validate
+from nn_magnetics.data.dataset import get_one_magnet, ChiMode
+from nn_magnetics.pytorch.validate import validate
 from nn_magnetics.utils.metrics import calculate_metrics, calculate_metrics_baseline
 
 
-def plot_loss(stats: Dict, save_path: str | None = None, show_plot: bool = False):
+def plot_loss(
+    stats: Dict,
+    save_path: str | None = None,
+    show_plot: bool = False,
+):
     if save_path is None and not show_plot:
         raise ValueError(
             "At least one of `show_plot` and `save_path must be specified.`"
         )
 
-    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(15, 5))
+    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(15, 5), sharex=True)
 
-    ax[0].set_yscale("log")
+    plt.suptitle("Learning Curves")
+    ax[0].set_xlim((0, 100))
     ax[0].plot(stats["train_loss"], label="Train")
     ax[0].plot(stats["test_loss"], label="Test")
     ax[0].legend()
 
     ax[1].plot(stats["angle_error"], label="Angle error")
+    ax[1].plot(stats["amplitude_error"], label="Amplitude error")
     ax[1].legend()
-
-    ax[2].plot(stats["amplitude_error"], label="Amplitude error")
-    ax[2].legend()
 
     plt.tight_layout()
 
@@ -44,8 +48,13 @@ def plot_loss(stats: Dict, save_path: str | None = None, show_plot: bool = False
 
 
 def _plot_histograms(
-    stats: Dict, save_path: str | None, show_plot: bool, tag: str = ""
+    stats: Dict,
+    save_path: str | None,
+    show_plot: bool,
+    tag: str = "",
 ):
+    fig: Figure
+
     fig, ax = plt.subplots(
         ncols=2, nrows=2, figsize=(10, 10), sharex="col", sharey="col"
     )
@@ -118,7 +127,10 @@ def plot_histograms(
 
 
 def plot_baseline_histograms(
-    stats: Dict, save_path: str | None, show_plot: bool, **kwargs
+    stats: Dict,
+    save_path: str | None,
+    show_plot: bool,
+    **kwargs,
 ):
     figsize = kwargs.pop("figsize", (10, 8))
     bins = kwargs.pop("bins", 20)
@@ -154,14 +166,14 @@ def plot_baseline_histograms(
 
 
 def plot_heatmaps_amplitude(
-    grid,
-    amplitude_errors_baseline,
-    amplitude_errors_trained,
-    a,
-    b,
-    tag,
-    save_path=None,
-    show_plot=False,
+    grid: np.ndarray,
+    amplitude_errors_baseline: np.ndarray,
+    amplitude_errors_trained: np.ndarray,
+    a: float,
+    b: float,
+    tag: str = "",
+    save_path: str | None = None,
+    show_plot: bool = False,
 ):
     eps_x = 0.01
     eps_y = 0.01
@@ -285,14 +297,14 @@ def plot_heatmaps_amplitude(
 
 
 def plot_heatmaps_angle(
-    grid,
-    angle_errors_baseline,
-    angle_errors_trained,
-    a,
-    b,
-    tag,
-    save_path=None,
-    show_plot=False,
+    grid: np.ndarray,
+    angle_errors_baseline: np.ndarray,
+    angle_errors_trained: np.ndarray,
+    a: float,
+    b: float,
+    tag: str = "",
+    save_path: str | None = None,
+    show_plot: bool = False,
 ):
     eps_x = 0.01
     eps_y = 0.01

@@ -1,5 +1,5 @@
 from typing import Type, Literal, Callable
-
+from jaxtyping import Float, Array
 import torch
 import torch.nn.functional as F
 import torch.linalg as LA
@@ -46,7 +46,9 @@ class Network(nn.Module):
         self.activation = activation
         self.do_output_activation = do_output_activation
 
-    def forward(self, x):
+    def forward(
+        self, x: Float[torch.Tensor, "in_features 64"]
+    ) -> Float[torch.Tensor, "out_features 64"]:
         x = self.activation(self.linear1(x))
         x = self.activation(self.linear2(x))
         x = self.activation(self.linear3(x))

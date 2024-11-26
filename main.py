@@ -6,7 +6,7 @@ from typing import Literal
 import wandb
 from wakepy import keep
 
-from nn_magnetics import (
+from nn_magnetics.pytorch import (
     train_isotropic,
     evaluate_isotropic,
     train_anisotropic,
@@ -41,20 +41,20 @@ def setup_wandb(project_name: str, config: ModelConfig) -> None:
 
 def run_experiment(config: ModelConfig) -> None:
     """Run the training and evaluation pipeline."""
-    train_isotropic(config.__dict__)
-    evaluate_isotropic(config.__dict__)
+    train_anisotropic(config.__dict__)
+    evaluate_anisotropic(config.__dict__)
 
 
 def main() -> None:
-    project_name = "isotropic_chi_amplitude_correction"
+    project_name = "trying-out-sweeps"
     timestamp = str(datetime.datetime.now())
     config = ModelConfig(
         learning_rate=0.001,
         architecture="MLP",
         hidden_dim_factor=6,
         activation="SiLU",
-        loss_fn="amplitude",
-        data_dir="data/isotropic_chi",
+        loss_fn="field",
+        data_dir="data/anisotropic_chi",
         epochs=30,
         batch_size=128,
         gamma=0.95,

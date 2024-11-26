@@ -8,9 +8,7 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "magpylib>=5.1.1",
     "magpylib-material-response>=0.3.0",
-    "matplotlib>=3.9.2",
     "numpy>=2.1.3",
     "torch>=2.5.1",
     "tqdm>=4.67.0",
@@ -20,6 +18,11 @@ dependencies = [
     "scienceplots>=2.1.1",
     "wakepy>=0.10.1",
     "tool>=0.8.0",
+    "h5py>=3.12.1",
+    "webcolors==24.11.1",
+    "magpylib>=5.1.1",
+    "jaxtyping>=0.2.36",
+    "jax>=0.4.35",
 ]
 
 [build-system]
@@ -31,3 +34,8 @@ dev = [
     "ipykernel>=6.29.5",
     "mypy>=1.13.0"
 ]
+
+[tool.uv.sources]
+magpylib = { git = "https://github.com/jack-smithy/magpylib.git", branch = "jack-nn" }
+
+
