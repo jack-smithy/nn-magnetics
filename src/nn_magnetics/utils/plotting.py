@@ -32,8 +32,8 @@ def plot_loss(
     ax[0].legend()
 
     ax[1].plot(stats["angle_error"], label="Angle error")
-    ax[1].plot(stats["amplitude_error"], label="Amplitude error")
-    ax[1].legend()
+    ax[2].plot(stats["amplitude_error"], label="Amplitude error")
+    ax[2].legend()
 
     plt.tight_layout()
 
@@ -41,7 +41,7 @@ def plot_loss(
         with open(f"{save_path}/training_stats.json", "w+") as f:
             json.dump(stats, f)
 
-        plt.savefig(f"{save_path}/loss.png", format="png")
+        plt.savefig(f"{save_path}/loss.pgf", format="pgf")
 
     if show_plot:
         plt.show()

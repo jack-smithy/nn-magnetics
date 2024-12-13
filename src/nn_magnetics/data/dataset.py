@@ -1,9 +1,12 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import Enum
 from pathlib import Path
-from typing import Tuple
+import stat
+import typing as t
+import jax.numpy as jnp
 
 import numpy as np
+from numpy.typing import ArrayLike
 import torch
 from torch.utils.data import Dataset
 
@@ -29,11 +32,72 @@ class DemagData(Dataset):
     def __len__(self) -> int:
         return len(self.X)
 
-    def __getitem__(self, idx) -> Tuple[torch.Tensor, torch.Tensor]:
+    def __getitem__(self, idx) -> t.Tuple[torch.Tensor, torch.Tensor]:
         return self.X[idx], self.y[idx]
 
 
-def get_data_parallel(path: str | Path, chi_mode: ChiMode) -> Tuple[np.ndarray, ...]:
+class IsotropicData(Dataset):
+    def __init__(self, path: Path) -> None:
+        super().__init__()
+
+        self.X, self.B = self._get_all_data(path)
+
+    def __len__(self) -> int:
+        assert len(self.X) == len(self.B)
+        return len(self.X)
+
+    def __getitem__(self, index) -> t.Tuple[ArrayLike, ArrayLike]:
+        return self.X[index], self.B[index][:3]
+
+    def _get_all_data(self, path: Path):
+        input_data_all, output_data_all = [], []
+
+        with ThreadPoolExecutor() as e:
+            futures = [e.submit(self._get_magnet, file) for file in path.iterdir()]
+            for future in as_completed(futures):
+                input_data_new, output_data_new = future.result()
+                input_data_all.append(input_data_new)
+                output_data_all.append(output_data_new)
+
+        input_data = np.concatenate(input_data_all)
+        output_data = np.concatenate(output_data_all)
+
+        assert input_data.shape[1] == output_data.shape[1]
+
+        return input_data, output_data
+
+    @staticmethod
+    def _get_magnet(file):
+        data = np.load(file)
+        grid = data["grid"]
+        length = len(grid)
+
+        input_data_new = np.vstack(
+            (
+                np.ones(length) * data["a"],
+                np.ones(length) * data["b"],
+                np.ones(length) * data["chi"],
+                grid[:, 0] / data["a"],
+                grid[:, 1] / data["b"],
+                grid[:, 2],
+            )
+        ).T
+
+        # get the corresponding labels
+        output_data_new = np.concatenate(
+            (data["grid_field"], data["grid_field_reduced"]),
+            axis=1,
+        )
+
+        return input_data_new, output_data_new
+
+
+##############################
+####   Older stuff here   ####
+##############################
+
+
+def get_data_parallel(path: str | Path, chi_mode: ChiMode) -> t.Tuple[np.ndarray, ...]:
     if isinstance(path, str):
         path = Path(path)
 
@@ -72,7 +136,7 @@ def get_data_parallel(path: str | Path, chi_mode: ChiMode) -> Tuple[np.ndarray, 
     )
 
 
-def get_data(path: str | Path, chi_mode: ChiMode) -> Tuple[np.ndarray, ...]:
+def get_data(path: str | Path, chi_mode: ChiMode) -> t.Tuple[np.ndarray, ...]:
     if isinstance(path, str):
         path = Path(path)
 

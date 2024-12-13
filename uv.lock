@@ -8,6 +8,15 @@ resolution-markers = [
 ]
 
 [[package]]
+name = "absl-py"
+version = "2.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7a/8f/fc001b92ecc467cc32ab38398bd0bfb45df46e7523bf33c2ad22a505f06e/absl-py-2.1.0.tar.gz", hash = "sha256:7820790efbb316739cde8b4e19357243fc3608a152024288513dd968d7d959ff", size = 118055 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a2/ad/e0d3c824784ff121c03cc031f944bc7e139a8f1870ffd2845cc2dd76f6c4/absl_py-2.1.0-py3-none-any.whl", hash = "sha256:526a04eadab8b4ee719ce68f204172ead1027549089702d99b9059f129ff1308", size = 133706 },
+]
+
+[[package]]
 name = "appnope"
 version = "0.1.4"
 source = { registry = "https://pypi.org/simple" }
@@ -128,6 +137,24 @@ wheels = [
 ]
 
 [[package]]
+name = "chex"
+version = "0.1.88"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "absl-py" },
+    { name = "jax" },
+    { name = "jaxlib" },
+    { name = "numpy" },
+    { name = "setuptools" },
+    { name = "toolz" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ff/7a/3b8ca1c693a5ab0a03e48837c6da8659a0dd9f742248d69c4d8beae13d27/chex-0.1.88.tar.gz", hash = "sha256:565de897b1373232cdfca5e699f50fa49403d2c7d23f6c5a75a97ef713d2fe36", size = 90366 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/58/a0/e4bebe76bdd0a68077030f1b5e48b545597473ae1b773c84150311152efc/chex-0.1.88-py3-none-any.whl", hash = "sha256:234b61a5baa8132802e4b9c5657167d6c8a911d90a59a0bec47d537567e41b75", size = 99684 },
+]
+
+[[package]]
 name = "click"
 version = "8.1.7"
 source = { registry = "https://pypi.org/simple" }
@@ -244,6 +271,43 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c5/e6/d1f6c00b7221e2d7c4b470132c931325c8b22c51ca62417e300f5ce16009/docker-pycreds-0.4.0.tar.gz", hash = "sha256:6ce3270bcaf404cc4c3e27e4b6c70d3521deae82fb508767870fdbf772d584d4", size = 8754 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f5/e8/f6bd1eee09314e7e6dee49cbe2c5e22314ccdb38db16c9fc72d2fa80d054/docker_pycreds-0.4.0-py2.py3-none-any.whl", hash = "sha256:7266112468627868005106ec19cd0d722702d2b7d5912a28e19b826c3d37af49", size = 8982 },
+]
+
+[[package]]
+name = "einops"
+version = "0.8.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/79/ca/9f5dcb8bead39959454c3912266bedc4c315839cee0e0ca9f4328f4588c1/einops-0.8.0.tar.gz", hash = "sha256:63486517fed345712a8385c100cb279108d9d47e6ae59099b07657e983deae85", size = 58861 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/44/5a/f0b9ad6c0a9017e62d4735daaeb11ba3b6c009d69a26141b258cd37b5588/einops-0.8.0-py3-none-any.whl", hash = "sha256:9572fb63046264a862693b0a87088af3bdc8c068fde03de63453cbbde245465f", size = 43223 },
+]
+
+[[package]]
+name = "equinox"
+version = "0.11.10"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "jax" },
+    { name = "jaxtyping" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c8/5d/62425721b7062c484112cac064a1ecae99b642c04979c75f36d3443bf157/equinox-0.11.10.tar.gz", hash = "sha256:f3e7d5545b71e427859a28050526d09adb6b20285c47476a606328a0b96c9509", size = 140418 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3a/af/411e94c165229882eb2d0a329114826aa52c7c61ef3108d0d3d8ad7189ed/equinox-0.11.10-py3-none-any.whl", hash = "sha256:ee6809e31664b92487b247f811fca48a2107f7ec958084b2294af2ee8a750e3b", size = 178939 },
+]
+
+[[package]]
+name = "etils"
+version = "1.11.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/85/28/8a4d0614a7864c1c703f848dedb69d2f532a623ffb0159e390c06ad20279/etils-1.11.0.tar.gz", hash = "sha256:aff3278a3be7fddf302dfd80335e9f924244666c71239cd91e836f3d055f1c4a", size = 103610 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4f/4a/ff8aa2c57300613b69905308c5afe92c5b01112d766c25a305fd6796170a/etils-1.11.0-py3-none-any.whl", hash = "sha256:a394cf3476bcec51c221426a70c39cd1006e889456ba41e4d7f12fd6814be7a5", size = 165419 },
+]
+
+[package.optional-dependencies]
+epy = [
+    { name = "typing-extensions" },
 ]
 
 [[package]]
@@ -596,12 +660,45 @@ wheels = [
 [[package]]
 name = "magpylib"
 version = "5.1.0.dev4"
-source = { git = "https://github.com/jack-smithy/magpylib.git?branch=jack-nn#c26f0fa37fa6c3ecc8c58714bfbff7c17e3556b0" }
+source = { editable = "../magpylib" }
 dependencies = [
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "plotly" },
     { name = "scipy" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "coverage", marker = "extra == 'test'" },
+    { name = "imageio", extras = ["tifffile", "ffmpeg"], marker = "extra == 'test'" },
+    { name = "ipywidgets", marker = "extra == 'test'" },
+    { name = "jupyterlab", marker = "extra == 'binder'", specifier = ">=3.2" },
+    { name = "jupyterlab", marker = "extra == 'test'" },
+    { name = "jupyterlab-myst", marker = "extra == 'binder'" },
+    { name = "jupytext", marker = "extra == 'binder'" },
+    { name = "magpylib-material-response", marker = "extra == 'docs'" },
+    { name = "matplotlib", specifier = ">=3.6" },
+    { name = "myst-nb", marker = "extra == 'docs'" },
+    { name = "numpy", specifier = ">=1.23" },
+    { name = "numpy-stl", marker = "extra == 'docs'" },
+    { name = "pandas", marker = "extra == 'docs'" },
+    { name = "pandas", marker = "extra == 'test'" },
+    { name = "plotly", specifier = ">=5.16" },
+    { name = "pre-commit", marker = "extra == 'code-style'" },
+    { name = "pydata-sphinx-theme", marker = "extra == 'docs'" },
+    { name = "pylint", marker = "extra == 'test'", specifier = ">3.0" },
+    { name = "pytest", marker = "extra == 'test'", specifier = ">=7.4" },
+    { name = "pyvista", marker = "extra == 'docs'" },
+    { name = "pyvista", marker = "extra == 'test'" },
+    { name = "scipy", specifier = ">=1.8" },
+    { name = "sphinx", marker = "extra == 'docs'", specifier = "==7.3" },
+    { name = "sphinx-copybutton", marker = "extra == 'docs'" },
+    { name = "sphinx-design", marker = "extra == 'docs'" },
+    { name = "sphinx-favicon", marker = "extra == 'docs'" },
+    { name = "sphinx-gallery", marker = "extra == 'docs'" },
+    { name = "sphinx-thebe", marker = "extra == 'docs'" },
+    { name = "tox", marker = "extra == 'test'", specifier = ">=4.11" },
 ]
 
 [[package]]
@@ -801,6 +898,8 @@ name = "nn-magnetics"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "einops" },
+    { name = "equinox" },
     { name = "h5py" },
     { name = "jax" },
     { name = "jaxtyping" },
@@ -808,6 +907,7 @@ dependencies = [
     { name = "magpylib-material-response" },
     { name = "nbformat" },
     { name = "numpy" },
+    { name = "optax" },
     { name = "scienceplots" },
     { name = "scipy" },
     { name = "tool" },
@@ -826,13 +926,16 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "einops", specifier = ">=0.8.0" },
+    { name = "equinox", specifier = ">=0.11.9" },
     { name = "h5py", specifier = ">=3.12.1" },
     { name = "jax", specifier = ">=0.4.35" },
     { name = "jaxtyping", specifier = ">=0.2.36" },
-    { name = "magpylib", git = "https://github.com/jack-smithy/magpylib.git?branch=jack-nn" },
+    { name = "magpylib", editable = "../magpylib" },
     { name = "magpylib-material-response", specifier = ">=0.3.0" },
     { name = "nbformat", specifier = ">=5.10.4" },
     { name = "numpy", specifier = ">=2.1.3" },
+    { name = "optax", specifier = ">=0.2.4" },
     { name = "scienceplots", specifier = ">=2.1.1" },
     { name = "scipy", specifier = ">=1.14.1" },
     { name = "tool", specifier = ">=0.8.0" },
@@ -1014,6 +1117,23 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/8c/b9/2ac072041e899a52f20cf9510850ff58295003aa75525e58343591b0cbfb/opt_einsum-3.4.0.tar.gz", hash = "sha256:96ca72f1b886d148241348783498194c577fa30a8faac108586b14f1ba4473ac", size = 63004 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/23/cd/066e86230ae37ed0be70aae89aabf03ca8d9f39c8aea0dec8029455b5540/opt_einsum-3.4.0-py3-none-any.whl", hash = "sha256:69bb92469f86a1565195ece4ac0323943e83477171b91d24c35afe028a90d7cd", size = 71932 },
+]
+
+[[package]]
+name = "optax"
+version = "0.2.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "absl-py" },
+    { name = "chex" },
+    { name = "etils", extra = ["epy"] },
+    { name = "jax" },
+    { name = "jaxlib" },
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/af/b5/f88a0d851547b2e6b2c7e7e6509ad66236b3e7019f1f095bb03dbaa61fa1/optax-0.2.4.tar.gz", hash = "sha256:4e05d3d5307e6dde4c319187ae36e6cd3a0c035d4ed25e9e992449a304f47336", size = 229717 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5c/24/28d0bb21600a78e46754947333ec9a297044af884d360092eb8561575fe9/optax-0.2.4-py3-none-any.whl", hash = "sha256:db35c04e50b52596662efb002334de08c2a0a74971e4da33f467e84fac08886a", size = 319212 },
 ]
 
 [[package]]
@@ -1502,6 +1622,15 @@ dependencies = [
     { name = "pyyaml" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ab/ec/2b258e54a13bc53a4352e538276b4b9ffdf0d08b3f2972ee062e71dc55a0/tool-0.8.0.tar.gz", hash = "sha256:5c596600abac4dc93d7854b0640fcc7577b7387f5b5f13bc873aed130aa8e881", size = 51557 }
+
+[[package]]
+name = "toolz"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/8a/0b/d80dfa675bf592f636d1ea0b835eab4ec8df6e9415d8cfd766df54456123/toolz-1.0.0.tar.gz", hash = "sha256:2c86e3d9a04798ac556793bced838816296a2f085017664e4995cb40a1047a02", size = 66790 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/03/98/eb27cc78ad3af8e302c9d8ff4977f5026676e130d28dd7578132a457170c/toolz-1.0.0-py3-none-any.whl", hash = "sha256:292c8f1c4e7516bf9086f8850935c799a874039c8bcf959d47b600e4c44a6236", size = 56383 },
+]
 
 [[package]]
 name = "torch"

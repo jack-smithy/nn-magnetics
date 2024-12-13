@@ -1,11 +1,15 @@
 from typing import Dict, List, Tuple
 
+import json
 import h5py
 import magpylib as magpy
+import matplotlib
+import matplotlib.axes
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import OptimizeResult
 from scipy.optimize import differential_evolution as de
+from magpylib_material_response import meshing, demag
 
 from nn_magnetics.optimize import define_movement_side, define_movement_under
 
@@ -69,7 +73,6 @@ def cost_function(
     positions2_rotated,
     field_measured1,
     field_measured2_rotated,
-    plot,
 ):
     (
         polarization_magnitude,
@@ -112,10 +115,17 @@ def cost_function(
         position=(magnet_position_x, magnet_position_y, magnet_position_z),
         dimension=dimension,
         polarization=polarization,
-        susceptibility=(chi_perp, chi_perp, chi_long),  # type: ignore
+        # susceptibility=np.array([chi_perp, chi_perp, chi_long]),
     )
 
+    # magnet.susceptibility = (chi_perp, chi_perp, chi_long)  # type: ignore
     magnet.rotate_from_angax(magnet_angle, "z", degrees=False)
+
+    # mesh = meshing.mesh_Cuboid(magnet, target_elems=50, verbose=False)
+    # demag.apply_demag(mesh)
+
+    # field_simulated1 = mesh.getB(positions1)
+    # field_simulated2 = mesh.getB(positions2_rotated)
 
     field_simulated1 = magnet.getB(positions1)
     field_simulated2 = magnet.getB(positions2_rotated)
@@ -157,38 +167,6 @@ def cost_function(
     field_simulated2[3, :, 1] += offset_x
     field_simulated2[3, :, 2] -= offset_z
 
-    if plot:
-        plt.plot(field_measured1[:, 0], label="measured x")
-        plt.plot(field_measured1[:, 1], label="measured y")
-        plt.plot(field_measured1[:, 2], label="measured z")
-
-        plt.plot(field_simulated1[:, 0], label="simulated x")
-        plt.plot(field_simulated1[:, 1], label="simulated y")
-        plt.plot(field_simulated1[:, 2], label="simulated z")
-        plt.legend()
-        plt.show()
-
-        for i in range(4):
-            plt.plot(field_measured2_rotated[i, :, 0], label="measured x")
-            plt.plot(field_measured2_rotated[i, :, 1], label="measured y")
-            plt.plot(field_measured2_rotated[i, :, 2], label="measured z")
-
-            plt.plot(field_simulated2[i, :, 0], label="simulated x")
-            plt.plot(field_simulated2[i, :, 1], label="simulated y")
-            plt.plot(field_simulated2[i, :, 2], label="simulated z")
-            plt.legend()
-            plt.show()
-
-        np.savez(
-            "analytic_results_relative_extended_sensorcharacterization.npz",
-            positions1=positions1,
-            positions2_rotated=positions2_rotated,
-            field_measured1=field_measured1,
-            field_measured2_rotated=field_measured2_rotated,
-            field_simulated1=field_simulated1,
-            field_simulated2=field_simulated2,
-        )
-
     result1 = (
         np.linalg.norm(field_simulated1 - field_measured1, axis=-1) ** 2
         / np.linalg.norm(field_measured1, axis=-1) ** 2
@@ -210,12 +188,22 @@ def fit(
     field_measured1,
     field_measured2_rotated,
     maxiter,
+    save_path,
     popsize=40,
 ) -> OptimizeResult:
+    def _save_intermediate(x, val):
+        with open(f"{save_path}/best_params.json", "w+") as f:
+            json.dump(arr_to_dict(x), f)
+
+        return
+
     result = de(
         func=cost_function,
         bounds=(
-            (polarization_magnitude, polarization_magnitude),  # polarization magnitude
+            (
+                polarization_magnitude - 0.0001,
+                polarization_magnitude + 0.0001,
+            ),  # polarization magnitude
             (np.pi / 2 - np.pi / 10, np.pi / 2 + np.pi / 10),  # polarization phi
             (np.pi / 2 - np.pi / 10, np.pi / 2 + np.pi / 10),  # polarization theta
             (-np.pi / 10, np.pi / 10),  # magnet angle
@@ -239,12 +227,13 @@ def fit(
             positions2_rotated,
             field_measured1,
             field_measured2_rotated,
-            False,
         ),
         maxiter=maxiter,
         popsize=popsize,
-        workers=1,
+        workers=-1,
         disp=True,
+        callback=_save_intermediate,
+        polish=False,
     )
 
     return result
@@ -256,6 +245,7 @@ def evaluate(
     positions2_rotated,
     field_measured1,
     field_measured2_rotated,
+    save_dir=None,
 ):
     (
         polarization_magnitude,
@@ -298,10 +288,16 @@ def evaluate(
         position=(magnet_position_x, magnet_position_y, magnet_position_z),
         dimension=dimension,
         polarization=polarization,
-        susceptibility=(chi_perp, chi_perp, chi_long),  # type: ignore
+        # susceptibility=np.array([chi_perp, chi_perp, chi_long]),
     )
-
+    # magnet.susceptibility = (chi_perp, chi_perp, chi_long)  # type: ignore
     magnet.rotate_from_angax(magnet_angle, "z", degrees=False)
+
+    # mesh = meshing.mesh_Cuboid(magnet, target_elems=50, verbose=False)
+    # NN.apply_NN(mesh)
+
+    # field_simulated1 = mesh.getB(positions1)
+    # field_simulated2 = mesh.getB(positions2_rotated)
 
     field_simulated1 = magnet.getB(positions1)
     field_simulated2 = magnet.getB(positions2_rotated)
@@ -343,25 +339,165 @@ def evaluate(
     field_simulated2[3, :, 1] += offset_x
     field_simulated2[3, :, 2] -= offset_z
 
-    plt.plot(field_measured1[:, 0], label="measured x")
-    plt.plot(field_measured1[:, 1], label="measured y")
-    plt.plot(field_measured1[:, 2], label="measured z")
+    ###############################
+    ### Plot Measurement Values ###
+    ###############################
+    fig, (ax1, ax2, ax3) = plt.subplots(nrows=1, ncols=3, figsize=(15, 5), sharey=True)
+    ax1: matplotlib.axes.Axes
+    ax2: matplotlib.axes.Axes
+    ax3: matplotlib.axes.Axes
 
-    plt.plot(field_simulated1[:, 0], label="simulated x")
-    plt.plot(field_simulated1[:, 1], label="simulated y")
-    plt.plot(field_simulated1[:, 2], label="simulated z")
-    plt.legend()
-    plt.show()
+    ax1.plot(field_measured1[:, 0], label="Measurement")
+    ax1.plot(field_simulated1[:, 0], label="Simulation")
+    ax1.legend()
+    ax1.set_xlabel("Point")
+    ax1.set_title("X")
+    ax1.set_ylabel("B Field")
 
+    ax2.plot(field_measured1[:, 1], label="Measurement")
+    ax2.plot(field_simulated1[:, 1], label="Measurement")
+    ax2.legend()
+    ax2.set_title("Y")
+    ax2.set_xlabel("Point")
+
+    ax3.plot(field_measured1[:, 2], label="Measurement")
+    ax3.plot(field_simulated1[:, 2], label="Simulation")
+    ax3.legend()
+    ax3.set_title("Z")
+    ax3.set_xlabel("Point")
+
+    fig.suptitle("Field Values for NN Solution and Measurements")
+
+    if save_dir is not None:
+        plt.savefig(f"{save_dir}/measurements.png", format="png")
+    else:
+        plt.show()
+
+    ############################
+    ### Plot Relative Errors ###
+    ############################
+    fig, (ax1, ax2, ax3) = plt.subplots(nrows=1, ncols=3, figsize=(15, 5), sharey=True)
+    ax1.plot(
+        np.abs((field_measured1[:, 0] - field_simulated1[:, 0]) / field_measured1[:, 0])
+        * 100
+    )
+    ax1.set_title("X")
+    ax1.set_ylabel("Relative Error (%)")
+    ax1.set_xlabel("Point")
+
+    ax2.plot(
+        np.abs((field_measured1[:, 1] - field_simulated1[:, 1]) / field_measured1[:, 0])
+        * 100,
+    )
+    ax2.set_title("Y")
+    ax2.set_xlabel("Point")
+
+    ax3.plot(
+        np.abs((field_measured1[:, 2] - field_simulated1[:, 2]) / field_measured1[:, 2])
+        * 100,
+    )
+    ax3.set_title("Z")
+    ax3.set_xlabel("Point")
+
+    fig.suptitle("Relative Error of NN Solution")
+
+    if save_dir is not None:
+        plt.savefig(f"{save_dir}/relative-errors.png", format="png")
+    else:
+        plt.show()
+
+    ############################
+    ### Plot Absolute Errors ###
+    ############################
+    fig, (ax1, ax2, ax3) = plt.subplots(nrows=1, ncols=3, figsize=(15, 5), sharey=True)
+    ax1.plot(
+        np.abs((field_measured1[:, 0] - field_simulated1[:, 0])),
+    )
+    ax1.set_title("X")
+    ax1.set_ylabel("Absolute Error")
+
+    ax2.plot(
+        np.abs((field_measured1[:, 1] - field_simulated1[:, 1])),
+    )
+    ax2.set_title("Y")
+    ax2.set_xlabel("Point")
+
+    ax3.plot(
+        np.abs((field_measured1[:, 2] - field_simulated1[:, 2])),
+    )
+    ax3.set_title("Z")
+    ax3.set_xlabel("Point")
+
+    fig.suptitle("Absolute Error of NN Solution")
+    if save_dir is not None:
+        plt.savefig(f"{save_dir}/absolute-errors.png", format="png")
+    else:
+        plt.show()
+
+    ########################################
+    ### Plot Some Other Measurements (?) ###
+    ########################################
     for i in range(4):
-        plt.plot(field_measured2_rotated[i, :, 0], label="measured x")
-        plt.plot(field_measured2_rotated[i, :, 1], label="measured y")
-        plt.plot(field_measured2_rotated[i, :, 2], label="measured z")
+        fig, (ax1, ax2, ax3) = plt.subplots(nrows=3, ncols=1, sharex=True)
+        ax1.plot(field_measured2_rotated[i, :, 0], label="Measured")
+        ax1.plot(field_simulated2[i, :, 0], label="Simulated")
+        ax1.set_title("X")
+        ax1.legend()
 
-        plt.plot(field_simulated2[i, :, 0], label="simulated x")
-        plt.plot(field_simulated2[i, :, 1], label="simulated y")
-        plt.plot(field_simulated2[i, :, 2], label="simulated z")
-        plt.legend()
+        ax2.plot(field_measured2_rotated[i, :, 1], label="Measured")
+        ax2.plot(field_simulated2[i, :, 1], label="Simulated y")
+        ax2.set_title("Y")
+        ax2.legend()
+
+        ax3.plot(field_measured2_rotated[i, :, 2], label="Measured")
+        ax3.plot(field_simulated2[i, :, 2], label="Simulated")
+        ax3.set_title("Z")
+        ax3.legend()
+        if save_dir is not None:
+            plt.savefig(f"{save_dir}/measurements_rotated_{i}.png", format="png")
+        else:
+            plt.show()
+
+    ############################
+    ### Plot Some Histograms ###
+    ############################
+    fig, (ax1, ax2, ax3) = plt.subplots(nrows=1, ncols=3, figsize=(15, 5), sharey=True)
+
+    mean = np.mean(
+        np.abs((field_measured1 - field_simulated1) / field_measured1) * 100,
+        axis=0,
+    )
+
+    ax1.hist(
+        np.abs((field_measured1[:, 0] - field_simulated1[:, 0]) / field_measured1[:, 0])
+        * 100,
+        bins=20,
+    )
+    ax1.set_title(f"X: Mean={round(mean[0], 2)}")
+    ax1.set_ylabel("Count")
+    ax2.set_xlabel("Relative Error (%)")
+
+    ax2.hist(
+        np.abs((field_measured1[:, 1] - field_simulated1[:, 1]) / field_measured1[:, 0])
+        * 100,
+        bins=20,
+    )
+    ax2.set_title(f"Y: Mean={round(mean[1], 2)}")
+    ax2.set_xlabel("Relative Error (%)")
+
+    ax3.hist(
+        np.abs((field_measured1[:, 2] - field_simulated1[:, 2]) / field_measured1[:, 2])
+        * 100,
+        bins=20,
+    )
+    ax3.set_title(f"Z: Mean={round(mean[2], 3)}")
+    ax3.set_xlabel("Relative Error (%)")
+
+    fig.suptitle("Relative Error Frequency of NN Solution")
+
+    if save_dir is not None:
+        plt.savefig(f"{save_dir}/relative-error-histograms.png", format="png")
+    else:
         plt.show()
 
 
@@ -390,6 +526,35 @@ def result_to_dict(result: OptimizeResult) -> Dict[str, float]:
 
     results_dict = {}
     for k, v in zip(parameter_names, optimized_parameters):
+        results_dict[k] = v
+
+    return results_dict
+
+
+def arr_to_dict(xs):
+    parameter_names: List[str] = [
+        "polarization_magnitude",
+        "polarization_phi",
+        "polarization_theta",
+        "magnet_angle",
+        "magnet_pos_x",
+        "magnet_pos_y",
+        "magnet_pos_z",
+        "magnet_dim_tol_x",
+        "magnet_dim_tol_y",
+        "magnet_dim_tol_z",
+        "sensitivity_x",
+        "sensitivity_y",
+        "sensitivity_z",
+        "offset_x",
+        "offset_y",
+        "offset_z",
+        "chi_perp",
+        "chi_long",
+    ]
+
+    results_dict = {}
+    for k, v in zip(parameter_names, xs):
         results_dict[k] = v
 
     return results_dict
