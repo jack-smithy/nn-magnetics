@@ -4,6 +4,7 @@ import torch
 import torch.nn.functional as F
 import torch.linalg as LA
 from torch import nn
+from nn_magnetics.pytorch.corrections import ArrayLike, angle_amp_correction
 
 type Activation = Callable[[torch.Tensor], torch.Tensor]
 
@@ -47,8 +48,9 @@ class Network(nn.Module):
         self.do_output_activation = do_output_activation
 
     def forward(
-        self, x: Float[torch.Tensor, "in_features 64"]
-    ) -> Float[torch.Tensor, "out_features 64"]:
+        self,
+        x: Float[torch.Tensor, "in_features batch"],
+    ) -> Float[torch.Tensor, "out_features batch"]:
         x = self.activation(self.linear1(x))
         x = self.activation(self.linear2(x))
         x = self.activation(self.linear3(x))
@@ -96,13 +98,25 @@ class AmplitudeLoss(nn.Module):
         return self.loss(B_demag_norm, B_reduced_norm * correction_factors)
 
 
+class AngleAmplitudeLoss(nn.Module):
+    def __init__(self, loss: Type[nn.Module] = nn.L1Loss):
+        super().__init__()
+        self.loss = loss()
+
+    def forward(self, B: ArrayLike, correction_factors: ArrayLike):
+        assert correction_factors.shape[1] == 4
+        angles, amplitudes = correction_factors[..., :3], correction_factors[..., 3]
+        B_demag, B_corrected = angle_amp_correction(B, angles, amplitudes)
+        return self.loss(B_demag, B_corrected)
+
+
 def get_loss(name: Literal["field", "correction"]) -> Type[nn.Module]:
     if name == "field":
         return FieldLoss
     elif name == "correction":
         return CorrectionLoss
-    elif name == "amplitude":
-        return AmplitudeLoss
+    elif name == "angle_amp":
+        return AngleAmplitudeLoss
     else:
         raise ValueError(f"Invalid loss function: {name}")
 

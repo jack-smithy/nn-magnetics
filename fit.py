@@ -6,7 +6,6 @@ from wakepy import keep
 from nn_magnetics.optimize import fit, prepare_measurements, result_to_dict, evaluate
 
 SAVE_DIR = f"fits/{datetime.datetime.now()}"
-# SAVE_DIR = "fits/2024-12-11 16:26:56.382257"
 
 
 def main():

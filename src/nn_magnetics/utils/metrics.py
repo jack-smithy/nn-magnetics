@@ -2,7 +2,12 @@ from typing import Tuple
 import numpy as np
 import torch
 
-from nn_magnetics.pytorch.corrections import field_correction, no_op
+from nn_magnetics.pytorch.corrections import (
+    field_correction,
+    no_op,
+    angle_amp_correction,
+    ArrayLike,
+)
 
 eps = 1e-10
 
@@ -41,6 +46,8 @@ def angle_error(v1, v2):
     Returns:
     - float: The angle error between v1 and v2 in °.
     """
+    if isinstance(v1, torch.Tensor) and isinstance(v2, torch.Tensor):
+        v1, v2 = v1.numpy(), v2.numpy()
 
     v1_norm = np.linalg.norm(v1, axis=-1)
     v2_norm = np.linalg.norm(v2, axis=-1)
@@ -68,14 +75,9 @@ def calculate_metrics_baseline(
     return angle_errors, amplitude_errors
 
 
-def calculate_metrics(B: np.ndarray, B_pred: np.ndarray, return_abs=True):
-    if isinstance(B, torch.Tensor):
-        B = B.numpy()
-
-    if isinstance(B_pred, torch.Tensor):
-        B_pred = B_pred.numpy()
-
-    B_true, B_corrected = field_correction(B, B_pred)
+def calculate_metrics(B: ArrayLike, B_pred: ArrayLike, return_abs=True):
+    angles, amplitudes = B_pred[..., :3], B_pred[..., 3]
+    B_true, B_corrected = angle_amp_correction(B, angles, amplitudes)
 
     batch_angle_errors = angle_error(B_true, B_corrected)
     batch_amplitude_errors = relative_amplitude_error(
