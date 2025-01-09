@@ -189,12 +189,12 @@ def train_anisotropic(config: Dict):
     print(f"Saving data to {config["save_path"]}")
 
     X_train, B_train = get_data_parallel(
-        f"{config["data_dir"]}/train",
+        f"{config["data_dir"]}/train_fast",
         ChiMode.ANISOTROPIC,
     )
 
     X_test, B_test = get_data_parallel(
-        f"{config["data_dir"]}/test_anisotropic",
+        f"{config["data_dir"]}/test_fast",
         ChiMode.ANISOTROPIC,
     )
 
@@ -223,7 +223,7 @@ def train_anisotropic(config: Dict):
     model = Network(
         in_features=7,
         hidden_dim_factor=config["hidden_dim_factor"],
-        out_features=3,
+        out_features=4,
         activation=F.silu,
     ).to(DEVICE, dtype=torch.float64)
 
@@ -325,7 +325,7 @@ def evaluate_anisotropic(config: Dict):
     model = Network(
         in_features=7,
         hidden_dim_factor=config["hidden_dim_factor"],
-        out_features=3,
+        out_features=4,
     ).to(DEVICE, dtype=torch.float64)
 
     model.load_state_dict(

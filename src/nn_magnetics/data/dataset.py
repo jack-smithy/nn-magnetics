@@ -1,12 +1,9 @@
+import typing as t
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import Enum
 from pathlib import Path
-import stat
-import typing as t
-import jax.numpy as jnp
 
 import numpy as np
-from numpy.typing import ArrayLike
 import torch
 from torch.utils.data import Dataset
 
@@ -37,17 +34,26 @@ class DemagData(Dataset):
 
 
 class IsotropicData(Dataset):
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path | str) -> None:
         super().__init__()
 
+        if isinstance(path, str):
+            path = Path(path)
+
         self.X, self.B = self._get_all_data(path)
+
+    def __str__(self) -> str:
+        return f"IsotropicData(\n\t{len(self)} data points\n\t{self.X.shape[1]} input features\n\t{self.B.shape[1]} output features\n)"
+
+    def __repr__(self) -> str:
+        return self.__str__()
 
     def __len__(self) -> int:
         assert len(self.X) == len(self.B)
         return len(self.X)
 
-    def __getitem__(self, index) -> t.Tuple[ArrayLike, ArrayLike]:
-        return self.X[index], self.B[index][:3]
+    def __getitem__(self, index: int) -> t.Tuple[torch.Tensor, torch.Tensor]:
+        return torch.tensor(self.X[index]), torch.tensor(self.B[index])
 
     def _get_all_data(self, path: Path):
         input_data_all, output_data_all = [], []

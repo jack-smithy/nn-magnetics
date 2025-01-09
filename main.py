@@ -22,7 +22,7 @@ class ModelConfig:
     architecture: Literal["MLP"]
     hidden_dim_factor: int
     activation: Literal["SiLU"]
-    loss_fn: Literal["field", "correction", "amplitude"]
+    loss_fn: Literal["field", "correction", "angle_amp"]
     data_dir: str
     epochs: int
     batch_size: int
@@ -53,7 +53,7 @@ def main() -> None:
         architecture="MLP",
         hidden_dim_factor=6,
         activation="SiLU",
-        loss_fn="field",
+        loss_fn="angle_amp",
         data_dir="data/anisotropic_chi",
         epochs=30,
         batch_size=128,
@@ -61,7 +61,7 @@ def main() -> None:
         save_path=f"results/{project_name}/{timestamp}",
     )
 
-    setup_wandb(project_name, config)
+    # setup_wandb(project_name, config)
     run_experiment(config)
 
 
