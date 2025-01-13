@@ -1,168 +1,149 @@
-import json
-from typing import Dict
-
 import torch
 import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
 import numpy as np
 from matplotlib import colors, patches
 
 from nn_magnetics.utils.cmaps import CMAP_ANGLE, CMAP_AMPLITUDE
-from nn_magnetics.data.dataset import get_one_magnet, ChiMode
-from nn_magnetics.pytorch.validate import validate
-from nn_magnetics.utils.metrics import calculate_metrics, calculate_metrics_baseline
+from nn_magnetics.data.dataset import IsotropicData
+from nn_magnetics.utils.metrics import (
+    calculate_metrics_baseline,
+    calculate_metrics_trained,
+)
 
 
 def plot_loss(
-    stats: Dict,
-    save_path: str | None = None,
-    show_plot: bool = False,
+    train_loss,
+    validation_loss,
+    angle_error,
+    amplitude_error,
+    n_epochs,
 ):
-    if save_path is None and not show_plot:
-        raise ValueError(
-            "At least one of `show_plot` and `save_path must be specified.`"
-        )
-
     fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(15, 5), sharex=True)
 
     plt.suptitle("Learning Curves")
-    ax[0].set_xlim((0, 100))
-    ax[0].plot(stats["train_loss"], label="Train")
-    ax[0].plot(stats["test_loss"], label="Test")
+    ax[0].set_xlim((0, n_epochs - 1))
+    ax[0].plot(train_loss, label="Train")
+    ax[0].plot(validation_loss, label="Test")
     ax[0].legend()
 
-    ax[1].plot(stats["angle_error"], label="Angle error")
-    ax[2].plot(stats["amplitude_error"], label="Amplitude error")
+    ax[1].plot(angle_error, label="Angle error")
+    ax[2].plot(amplitude_error, label="Amplitude error")
     ax[2].legend()
 
     plt.tight_layout()
 
-    if save_path is not None:
-        with open(f"{save_path}/training_stats.json", "w+") as f:
-            json.dump(stats, f)
-
-        plt.savefig(f"{save_path}/loss.pgf", format="pgf")
-
-    if show_plot:
-        plt.show()
+    return fig, ax
 
 
-def _plot_histograms(
-    stats: Dict,
-    save_path: str | None,
-    show_plot: bool,
-    tag: str = "",
+def plot_baseline_histograms(
+    path,
+    figsize=(10, 8),
+    bins=20,
 ):
-    fig: Figure
+    _, B = IsotropicData(path).get_magnets()
+
+    angle_errors, amplitude_errors = [], []
+
+    for Bi in B:
+        angle_error, amp_error = calculate_metrics_baseline(Bi)
+        angle_errors.append(torch.mean(angle_error))
+        amplitude_errors.append(torch.mean(amp_error))
+
+    fig, ax = plt.subplots(ncols=2, nrows=1, figsize=figsize)
+
+    mean_angle_baseline = np.mean(angle_errors)
+    mean_amp_baseline = np.mean(amplitude_errors)
+
+    ax[0].set_ylabel("Count (Baseline)")
+    ax[0].hist(
+        amplitude_errors,
+        bins=bins,
+        label=f"Avg Error: {round(mean_amp_baseline, 2)}%",
+    )
+    ax[0].legend()
+    ax[0].set_xlabel("Mean Relative Amplitude Error")
+
+    ax[1].hist(
+        angle_errors,
+        bins=bins,
+        label=f"Avg Error: {round(mean_angle_baseline, 2)}°",
+    )
+    ax[1].set_xlabel("Mean Angle Error")
+    ax[1].legend()
+
+    return fig, ax
+
+
+def plot_histograms(
+    X,
+    B,
+    model,
+    figsize=(10, 10),
+    bins=20,
+):
+    angle_errors_baseline, amplitude_errors_baseline = [], []
+
+    for Bi in B:
+        angle_error, amp_error = calculate_metrics_baseline(Bi)
+        angle_errors_baseline.append(torch.mean(angle_error))
+        amplitude_errors_baseline.append(torch.mean(amp_error))
+
+    angle_errors, amplitude_errors = [], []
+
+    for Xi, Bi in zip(X, B):
+        angle_error, amp_error = calculate_metrics_trained(Xi, Bi, model)
+        angle_errors.append(torch.mean(angle_error))
+        amplitude_errors.append(torch.mean(amp_error))
 
     fig, ax = plt.subplots(
-        ncols=2, nrows=2, figsize=(10, 10), sharex="col", sharey="col"
+        ncols=2,
+        nrows=2,
+        figsize=figsize,
+        sharex="col",
+        sharey="col",
     )
 
-    mean_angle_baseline = np.mean(stats["angle_errors_baseline"])
-    mean_amp_baseline = np.mean(stats["amp_errors_baseline"])
-    mean_amp = np.mean(stats["amp_errors"])
-    mean_angle = np.mean(stats["angle_errors"])
+    mean_angle_baseline = round(np.mean(angle_errors_baseline), 4)
+    mean_amp_baseline = round(np.mean(amplitude_errors_baseline), 4)
+    mean_angle = round(np.mean(angle_errors), 4)
+    mean_amp = round(np.mean(amplitude_errors), 4)
 
+    print(mean_angle_baseline, mean_amp_baseline, mean_angle, mean_amp)
+
+    ax[0, 0].set_ylabel("Count (Baseline)")
     ax[0, 0].hist(
-        stats["angle_errors_baseline"],
-        bins=20,
-        label=f"Avg Error: {round(mean_angle_baseline, 2)} degrees",
+        angle_errors_baseline,
+        bins=bins,
+        label=f"Avg Error: {mean_angle_baseline}°",
     )
     ax[0, 0].set_ylabel("Count (Baseline)")
     ax[0, 0].legend()
 
     ax[0, 1].hist(
-        stats["amp_errors_baseline"],
-        bins=20,
-        label=f"Avg Error: {round(mean_amp_baseline, 2)}%",
+        amplitude_errors_baseline,
+        bins=bins,
+        label=f"Avg Error: {mean_amp_baseline}%",
     )
     ax[0, 1].legend()
 
     ax[1, 0].hist(
-        stats["angle_errors"],
-        bins=20,
-        label=f"Avg Error: {round(mean_angle, 2)} degrees",
+        angle_errors,
+        bins=bins,
+        label=f"Avg Error: {mean_angle}°",
     )
-    ax[1, 0].set_xlabel("Mean Angle Error (degrees)")
+    ax[1, 0].set_xlabel("Mean Angle Error (°)")
     ax[1, 0].set_ylabel("Count (NN Correction)")
     ax[1, 0].legend()
 
     ax[1, 1].hist(
-        stats["amp_errors"],
-        bins=20,
-        label=f"Avg Error: {round(mean_amp, 2)}%",
+        amplitude_errors,
+        bins=bins,
+        label=f"Avg Error: {mean_amp}%",
     )
     ax[1, 1].set_xlabel("Mean Relative Amplitude Error (%)")
     ax[1, 1].legend()
 
-    plt.suptitle("Mean Errors Per Magnet")
-
-    if save_path is not None:
-        with open(f"{save_path}/val_stats.json", "w+") as f:
-            json.dump(stats, f)
-
-        plt.savefig(f"{save_path}/hist_{tag}.png", format="png")
-
-    if show_plot:
-        plt.show()
-
-
-def plot_histograms(
-    X_test: np.ndarray,
-    B_test: np.ndarray,
-    model: torch.nn.Module,
-    save_path: str | None = None,
-    show_plot: bool = False,
-    tag: str = "",
-):
-    val_stats = validate(X_test, B_test, model)
-
-    _plot_histograms(
-        val_stats,
-        save_path=save_path,
-        show_plot=show_plot,
-        tag=tag,
-    )
-
-
-def plot_baseline_histograms(
-    stats: Dict,
-    save_path: str | None,
-    show_plot: bool,
-    **kwargs,
-):
-    figsize = kwargs.pop("figsize", (10, 8))
-    bins = kwargs.pop("bins", 20)
-
-    fig, ax = plt.subplots(ncols=2, nrows=1, figsize=figsize)
-
-    mean_angle_baseline = np.mean(stats["angle_errors_baseline"])
-    mean_amp_baseline = np.mean(stats["amp_errors_baseline"])
-
-    ax[1].hist(
-        stats["angle_errors_baseline"],
-        bins=bins,
-        label=f"Avg Error: {round(mean_angle_baseline, 2)}°",
-    )
-    ax[0].set_ylabel("Count (Baseline)")
-    ax[1].set_xlabel("Mean Angle Error")
-    ax[1].legend()
-
-    ax[0].hist(
-        stats["amp_errors_baseline"],
-        bins=bins,
-        label=f"Avg Error: {round(mean_amp_baseline, 2)}%",
-    )
-    ax[0].legend()
-
-    ax[0].set_xlabel("Mean Relative Amplitude Error")
-
-    if save_path is not None:
-        plt.savefig(f"{save_path}/hist.png", format="png")
-
-    if show_plot:
-        plt.show()
+    return fig, ax
 
 
 def plot_heatmaps_amplitude(
@@ -171,9 +152,6 @@ def plot_heatmaps_amplitude(
     amplitude_errors_trained: np.ndarray,
     a: float,
     b: float,
-    tag: str = "",
-    save_path: str | None = None,
-    show_plot: bool = False,
 ):
     eps_x = 0.01
     eps_y = 0.01
@@ -289,11 +267,7 @@ def plot_heatmaps_amplitude(
     cbar = fig.colorbar(mesh, ax=axs.ravel().tolist())
     cbar.set_label("Relative Amplitude Error (%)")
 
-    if save_path is not None:
-        plt.savefig(f"{save_path}/heatmap_amplitude_{tag}.png", format="png")
-
-    if show_plot:
-        plt.show()
+    return fig, axs
 
 
 def plot_heatmaps_angle(
@@ -302,9 +276,6 @@ def plot_heatmaps_angle(
     angle_errors_trained: np.ndarray,
     a: float,
     b: float,
-    tag: str = "",
-    save_path: str | None = None,
-    show_plot: bool = False,
 ):
     eps_x = 0.01
     eps_y = 0.01
@@ -404,60 +375,44 @@ def plot_heatmaps_angle(
     cbar = fig.colorbar(mesh, ax=axs.ravel().tolist())
     cbar.set_label("Angle Error (°)")
 
-    if save_path is not None:
-        plt.savefig(f"{save_path}/heatmap_angle_{tag}.png", format="png")
-
-    if show_plot:
-        plt.show()
+    return fig, axs
 
 
 def plot_heatmaps(
     model: torch.nn.Module,
-    save_path: str | None,
-    tag: str,
-    chi_mode: ChiMode,
-    eval_path: str,
+    X: torch.Tensor,
+    B: torch.Tensor,
 ):
-    X, B = get_one_magnet(
-        chi_mode=chi_mode,
-        data=np.load(eval_path),
-    )
-
-    grid_start_idx = 3 if chi_mode.value == ChiMode.ISOTROPIC.value else 4
-
-    grid = X[:, grid_start_idx:]
+    grid = X[:, 3:]  # replace with 4 for anisotropic
     a = float(X[0, 0])
     b = float(X[0, 1])
-
-    with torch.no_grad():
-        preds = model(torch.tensor(X))
 
     angle_errors_baseline, amplitude_errors_baseline = calculate_metrics_baseline(
         B=B,
         return_abs=False,
     )
-    angle_errors_trained, amplitude_errors_trained = calculate_metrics(
+    angle_errors_trained, amplitude_errors_trained = calculate_metrics_trained(
+        X=X,
         B=B,
-        B_pred=preds,
+        model=model,
         return_abs=False,
     )
 
-    plot_heatmaps_amplitude(
-        grid=grid,
-        amplitude_errors_baseline=amplitude_errors_baseline,
-        amplitude_errors_trained=amplitude_errors_trained,
+    fig, axs = plot_heatmaps_amplitude(
+        grid=grid.numpy(),
+        amplitude_errors_baseline=amplitude_errors_baseline.numpy(),
+        amplitude_errors_trained=amplitude_errors_trained.numpy(),
         a=a,
         b=b,
-        tag=tag,
-        save_path=save_path,
     )
 
-    plot_heatmaps_angle(
-        grid=grid,
-        angle_errors_baseline=angle_errors_baseline,
-        angle_errors_trained=angle_errors_trained,
+    plt.show()
+
+    fig, axs = plot_heatmaps_angle(
+        grid=grid.numpy(),
+        angle_errors_baseline=angle_errors_baseline.numpy(),
+        angle_errors_trained=angle_errors_trained.numpy(),
         a=a,
         b=b,
-        tag=tag,
-        save_path=save_path,
     )
+    plt.show()
