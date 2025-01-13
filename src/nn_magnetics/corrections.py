@@ -1,35 +1,14 @@
+from typing import Tuple
+
 import numpy as np
 import torch
+from jaxtyping import Float
 from torch import Tensor
 
-
-def demagnetizing_factor(a, b, c):
-    norm = np.sqrt(a * a + b * b + c * c)
-    normab = np.sqrt(a * a + b * b)
-    normac = np.sqrt(a * a + c * c)
-    normbc = np.sqrt(b * b + c * c)
-
-    return (1 / np.pi) * (
-        (b**2 - c**2) / (2 * b * c) * np.log((norm - a) / (norm + a))
-        + (a**2 - c**2) / (2 * a * c) * np.log((norm - b) / (norm + b))
-        + b / (2 * c) * np.log((normab + a) / (normab - a))
-        + a / (2 * c) * np.log((normab + b) / (normab - b))
-        + c / (2 * a) * np.log((normbc - b) / (normbc + b))
-        + c / (2 * b) * np.log((normac - a) / (normac + a))
-        + 2 * np.arctan((a * b) / (c * norm))
-        + (a**3 + b**3 - 2 * c**3) / (3 * a * b * c)
-        + (a**2 + b**2 - 2 * c**2) / (3 * a * b * c) * norm
-        + c / (a * b) * (np.sqrt(a**2 + c**2) + np.sqrt(b**2 + c**2))
-        - (
-            (a**2 + b**2) ** (3 / 2)
-            + (b**2 + c**2) ** (3 / 2)
-            + (c**2 + a**2) ** (3 / 2)
-        )
-        / (3 * a * b * c)
-    )
+ArrayLike = np.ndarray | Tensor
 
 
-def batch_rotation_matrices(angles: Tensor) -> Tensor:
+def batch_rotation_matrices(angles: ArrayLike) -> ArrayLike:
     assert angles.shape[0] > 0 and angles.shape[1] == 3
 
     alpha = angles.T[0]
@@ -92,3 +71,41 @@ def batch_rotation_matrices(angles: Tensor) -> Tensor:
 
     # # Combine rotations by matrix multiplication: Rz * Ry * Rx
     return Rz @ Ry @ Rx
+
+
+def field_correction(
+    B: Float[ArrayLike, "batch 6"],
+    preds: Float[ArrayLike, "batch 3"],
+) -> Tuple[Float[ArrayLike, "batch 3"], Float[ArrayLike, "batch 3"]]:
+    """
+    Correct analytical solution using NN predictions.
+
+    Args:
+        B (Float[np.ndarray, "batch 6"]): Array containing true B field (...,:3) and analytical B field (...,3:) for 'batch' points
+        preds (Float[np.ndarray, "batch 3"]): NN correction factors for the 'batch points'
+
+    Returns:
+        (Tuple[Float[np.ndarray, "batch 3"], Float[np.ndarray, "batch 3"]]): Tuple containing the unmodified true B field and corrected analytical field.
+    """
+    assert preds.shape[1] == 3
+    B_demag, B_reduced = B[..., :3], B[..., 3:]
+    return B_demag, B_reduced * preds
+
+
+def no_op(B: ArrayLike) -> Tuple[ArrayLike, ...]:
+    return B[..., :3], B[..., 3:]
+
+
+def amplitude_correction(B: ArrayLike, preds: ArrayLike) -> Tuple[ArrayLike, ...]:
+    assert preds.shape[1] == 1
+    B_demag, B_reduced = B[..., :3], B[..., 3:]
+    return B_demag, preds * B_reduced
+
+
+def angle_amp_correction(
+    B_reduced: Float[ArrayLike, "batch 3"],
+    angles: Float[ArrayLike, "batch 3"],
+    amplitudes: Float[ArrayLike, "batch 1"],
+) -> ArrayLike:
+    R = batch_rotation_matrices(angles)
+    return amplitudes[:, None] * torch.einsum("nij,nj->ni", R, B_reduced)

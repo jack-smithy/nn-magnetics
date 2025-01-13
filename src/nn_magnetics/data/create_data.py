@@ -7,7 +7,7 @@ from magpylib_material_response.meshing import mesh_Cuboid
 eps = 1e-6
 
 
-def simulate_demag(a: float, b: float, chi: tuple) -> dict:
+def simulate_demag(a: float, b: float, chi: tuple, axis_coarseness: int = 26) -> dict:
     print("=" * 100)
 
     magnet = magpy.magnet.Cuboid(polarization=(0, 0, 1), dimension=(a, b, 1))
@@ -22,9 +22,9 @@ def simulate_demag(a: float, b: float, chi: tuple) -> dict:
 
     print("Creating measurement grid")
     _grid = []
-    for xx in np.linspace(eps, a * 2.5, 26):
-        for yy in np.linspace(eps, b * 2.5, 26):
-            for zz in np.linspace(eps, 2.5, 26):
+    for xx in np.linspace(eps, a * 2.5, axis_coarseness):
+        for yy in np.linspace(eps, b * 2.5, axis_coarseness):
+            for zz in np.linspace(eps, 2.5, axis_coarseness):
                 if not (
                     0 <= xx <= a / 2 + eps
                     and 0 <= yy <= b / 2 + eps
