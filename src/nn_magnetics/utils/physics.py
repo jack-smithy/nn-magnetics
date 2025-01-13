@@ -1,7 +1,6 @@
 import numpy as np
 import torch
-
-ArrayLike = torch.Tensor | np.ndarray
+from torch import Tensor
 
 
 def demagnetizing_factor(a, b, c):
@@ -30,7 +29,7 @@ def demagnetizing_factor(a, b, c):
     )
 
 
-def batch_rotation_matrices(angles: ArrayLike) -> ArrayLike:
+def batch_rotation_matrices(angles: Tensor) -> Tensor:
     assert angles.shape[0] > 0 and angles.shape[1] == 3
 
     alpha = angles.T[0]
@@ -93,7 +92,3 @@ def batch_rotation_matrices(angles: ArrayLike) -> ArrayLike:
 
     # # Combine rotations by matrix multiplication: Rz * Ry * Rx
     return Rz @ Ry @ Rx
-
-
-def split_tensor(B: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-    return B[..., :3], B[..., 3:]

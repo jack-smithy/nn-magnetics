@@ -34,13 +34,16 @@ class DemagData(Dataset):
 
 
 class IsotropicData(Dataset):
-    def __init__(self, path: Path | str) -> None:
+    def __init__(self, path: Path | str, device: str = "cpu") -> None:
         super().__init__()
 
         if isinstance(path, str):
             path = Path(path)
 
-        self.X, self.B = self._get_all_data(path)
+        self.path = path
+        self.device = device
+
+        self.X, self.B = self._get_all_data()
 
     def __str__(self) -> str:
         return f"IsotropicData(\n\t{len(self)} data points\n\t{self.X.shape[1]} input features\n\t{self.B.shape[1]} output features\n)"
@@ -53,13 +56,29 @@ class IsotropicData(Dataset):
         return len(self.X)
 
     def __getitem__(self, index: int) -> t.Tuple[torch.Tensor, torch.Tensor]:
-        return torch.tensor(self.X[index]), torch.tensor(self.B[index])
+        return (
+            torch.tensor(self.X[index], dtype=torch.float32, device=self.device),
+            torch.tensor(self.B[index], dtype=torch.float32, device=self.device),
+        )
 
-    def _get_all_data(self, path: Path):
+    def get_magnets(self) -> t.Tuple[torch.Tensor, torch.Tensor]:
+        X, B = torch.tensor([]), torch.tensor([])
+        with ThreadPoolExecutor() as e:
+            futures = [e.submit(self._get_magnet, file) for file in self.path.iterdir()]
+            for future in as_completed(futures):
+                _X, _B = future.result()
+                X = torch.cat((X, torch.tensor(_X).unsqueeze(0)))
+                B = torch.cat((B, torch.tensor(_B).unsqueeze(0)))
+        return (
+            X.type(torch.float32).to(self.device),
+            B.type(torch.float32).to(self.device),
+        )
+
+    def _get_all_data(self):
         input_data_all, output_data_all = [], []
 
         with ThreadPoolExecutor() as e:
-            futures = [e.submit(self._get_magnet, file) for file in path.iterdir()]
+            futures = [e.submit(self._get_magnet, file) for file in self.path.iterdir()]
             for future in as_completed(futures):
                 input_data_new, output_data_new = future.result()
                 input_data_all.append(input_data_new)

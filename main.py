@@ -1,70 +1,48 @@
-from __future__ import annotations
+import matplotlib.pyplot as plt
+from torch import nn
+from torch.optim import Adam
+from torch.utils.data import DataLoader
 
-import datetime
-from dataclasses import dataclass
-from typing import Literal
-import wandb
-from wakepy import keep
-
-from nn_magnetics.pytorch import (
-    train_isotropic,
-    evaluate_isotropic,
-    train_anisotropic,
-    evaluate_anisotropic,
+from nn_magnetics.data.dataset import IsotropicData
+from nn_magnetics.model import FieldCorrectionNetwork, AngleAmpCorrectionNetwork
+from nn_magnetics.utils.plotting import (
+    plot_loss,
+    plot_histograms,
+    plot_heatmaps,
 )
 
+train_data = IsotropicData("data/isotropic_chi/train_fast", device="cpu")
+valid_data = IsotropicData("data/isotropic_chi/test_fast", device="cpu")
+print("Loaded data")
 
-@dataclass
-class ModelConfig:
-    """Configuration for the ML model and training process."""
+train_loader = DataLoader(train_data, batch_size=64)
+valid_loader = DataLoader(valid_data, batch_size=64)
 
-    learning_rate: float
-    architecture: Literal["MLP"]
-    hidden_dim_factor: int
-    activation: Literal["SiLU"]
-    loss_fn: Literal["field", "correction", "angle_amp"]
-    data_dir: str
-    epochs: int
-    batch_size: int
-    gamma: float
-    save_path: str
+model = AngleAmpCorrectionNetwork(
+    in_features=6, hidden_dim_factor=12, out_features=4
+).to("cpu")
 
+loss = nn.L1Loss()
+optimizer = Adam(params=model.parameters(), lr=0.0001)
+epochs = 3
 
-def setup_wandb(project_name: str, config: ModelConfig) -> None:
-    """Initialize Weights & Biases tracking."""
-    wandb.init(project=project_name, config=config.__dict__)
-    if wandb.run is not None:
-        run_specific_path = f"results/{project_name}/{wandb.run.name}"
-        wandb.config.update({"save_path": wandb.run.name}, allow_val_change=True)
-        config.save_path = run_specific_path
+print("Started training")
+train_losses, valid_losses, angle_errs, amp_errs = model.train_model(
+    train_loader,
+    valid_loader,
+    loss,
+    optimizer,
+    epochs,
+)
 
+print("Finished training")
+fig, ax = plot_loss(train_losses, valid_losses, angle_errs, amp_errs, epochs)
+plt.show()
 
-def run_experiment(config: ModelConfig) -> None:
-    """Run the training and evaluation pipeline."""
-    train_anisotropic(config.__dict__)
-    evaluate_anisotropic(config.__dict__)
+print("Plotting eval histograms")
+X, B = valid_data.get_magnets()
+fig, ax = plot_histograms(X, B, model)
+plt.show()
 
-
-def main() -> None:
-    project_name = "trying-out-sweeps"
-    timestamp = str(datetime.datetime.now())
-    config = ModelConfig(
-        learning_rate=0.001,
-        architecture="MLP",
-        hidden_dim_factor=6,
-        activation="SiLU",
-        loss_fn="angle_amp",
-        data_dir="data/anisotropic_chi",
-        epochs=30,
-        batch_size=128,
-        gamma=0.95,
-        save_path=f"results/{project_name}/{timestamp}",
-    )
-
-    # setup_wandb(project_name, config)
-    run_experiment(config)
-
-
-if __name__ == "__main__":
-    with keep.running():
-        main()
+print("Plotting heatmaps")
+plot_heatmaps(model, X[0], B[0])
