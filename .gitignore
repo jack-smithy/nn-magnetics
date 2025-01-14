@@ -166,3 +166,4 @@ cython_debug/
 results/
 wandb/
 fits/
+data/

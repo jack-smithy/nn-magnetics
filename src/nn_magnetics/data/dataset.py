@@ -185,8 +185,9 @@ class AnisotropicData(Dataset):
             (
                 np.ones(length) * data["a"],
                 np.ones(length) * data["b"],
-                np.ones(length) * data["chi_perp"],
-                np.ones(length) * data["chi_long"],
+                np.ones(length) * data["chi_x"],
+                np.ones(length) * data["chi_y"],
+                np.ones(length) * data["chi_z"],
                 grid[:, 0] / data["a"],
                 grid[:, 1] / data["b"],
                 grid[:, 2],

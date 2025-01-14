@@ -1,10 +1,13 @@
-import torch
+from pathlib import Path
+
 import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
 import numpy as np
+import torch
 from matplotlib import colors, patches
 
-from nn_magnetics.utils.cmaps import CMAP_ANGLE, CMAP_AMPLITUDE
 from nn_magnetics.data.dataset import IsotropicData
+from nn_magnetics.utils.cmaps import CMAP_AMPLITUDE, CMAP_ANGLE
 from nn_magnetics.utils.metrics import (
     calculate_metrics_baseline,
     calculate_metrics_trained,
@@ -12,27 +15,37 @@ from nn_magnetics.utils.metrics import (
 
 
 def plot_loss(
-    train_loss,
-    validation_loss,
-    angle_error,
-    amplitude_error,
-    n_epochs,
+    train_loss: list,
+    validation_loss: list,
+    angle_error: list,
+    amplitude_error: list,
+    n_epochs: int,
+    save_path: Path | None,
 ):
-    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(15, 5), sharex=True)
+    ax: list[Axes]
+    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(12, 4), sharex=True)
 
-    plt.suptitle("Learning Curves")
+    for a in ax:
+        a.set_xlabel("Epochs")
+
     ax[0].set_xlim((0, n_epochs - 1))
     ax[0].plot(train_loss, label="Train")
     ax[0].plot(validation_loss, label="Test")
     ax[0].legend()
+    ax[0].set_ylabel("Loss")
 
     ax[1].plot(angle_error, label="Angle error")
+    ax[1].set_ylabel("Angle Error (°)")
+
     ax[2].plot(amplitude_error, label="Amplitude error")
-    ax[2].legend()
+    ax[2].set_ylabel("Relative Amplitude Error (%)")
 
     plt.tight_layout()
 
-    return fig, ax
+    if save_path is not None:
+        fig.savefig(f"{save_path}/learning_curves.png")
+    else:
+        plt.show()
 
 
 def plot_baseline_histograms(
@@ -78,7 +91,8 @@ def plot_histograms(
     X,
     B,
     model,
-    figsize=(10, 10),
+    save_path,
+    figsize=(8, 8),
     bins=20,
 ):
     angle_errors_baseline, amplitude_errors_baseline = [], []
@@ -103,12 +117,10 @@ def plot_histograms(
         sharey="col",
     )
 
-    mean_angle_baseline = round(np.mean(angle_errors_baseline), 4)
-    mean_amp_baseline = round(np.mean(amplitude_errors_baseline), 4)
-    mean_angle = round(np.mean(angle_errors), 4)
-    mean_amp = round(np.mean(amplitude_errors), 4)
-
-    print(mean_angle_baseline, mean_amp_baseline, mean_angle, mean_amp)
+    mean_angle_baseline = round(float(np.mean(angle_errors_baseline)), 4)
+    mean_amp_baseline = round(float(np.mean(amplitude_errors_baseline)), 4)
+    mean_angle = round(float(np.mean(angle_errors)), 4)
+    mean_amp = round(float(np.mean(amplitude_errors)), 4)
 
     ax[0, 0].set_ylabel("Count (Baseline)")
     ax[0, 0].hist(
@@ -143,7 +155,10 @@ def plot_histograms(
     ax[1, 1].set_xlabel("Mean Relative Amplitude Error (%)")
     ax[1, 1].legend()
 
-    return fig, ax
+    if save_path is not None:
+        fig.savefig(f"{save_path}/histograms.png")
+    else:
+        plt.show()
 
 
 def plot_heatmaps_amplitude(
@@ -218,6 +233,7 @@ def plot_heatmaps_amplitude(
         where=heatmap_counts_amplitude_baseline != 0,
     )
 
+    axs: list[Axes]
     fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(6, 6))
 
     mesh = axs[0].pcolormesh(
@@ -229,8 +245,8 @@ def plot_heatmaps_amplitude(
         norm=norm_amplitude,
     )
 
-    axs[0].set_xlabel("X (mm)")
-    axs[0].set_ylabel("Z (mm) - NN Solution")
+    axs[0].set_xlabel("X (a.u.)")
+    axs[0].set_ylabel("Z (a.u.) - NN Solution")
     axs[0].add_patch(
         patches.Rectangle(
             (0, 0),
@@ -251,8 +267,8 @@ def plot_heatmaps_amplitude(
         norm=norm_amplitude,
     )
 
-    axs[1].set_xlabel("X (mm)")
-    axs[1].set_ylabel("Z (mm) - Analytical Solution")
+    axs[1].set_xlabel("X (a.u.)")
+    axs[1].set_ylabel("Z (a.u.) - Analytical Solution")
     axs[1].add_patch(
         patches.Rectangle(
             (0, 0),
@@ -264,7 +280,7 @@ def plot_heatmaps_amplitude(
         )
     )
 
-    cbar = fig.colorbar(mesh, ax=axs.ravel().tolist())
+    cbar = fig.colorbar(mesh, ax=axs.ravel().tolist())  # type: ignore (its a ndarray rather than list but list is better for type hi)
     cbar.set_label("Relative Amplitude Error (%)")
 
     return fig, axs
@@ -337,8 +353,8 @@ def plot_heatmaps_angle(
         cmap=CMAP_ANGLE,
     )
     # axs[0].quiver(x_slice, z_slice, Bx, Bz)
-    axs[0].set_xlabel("X (mm)")
-    axs[0].set_ylabel("Z (mm) - NN Solution")
+    axs[0].set_xlabel("X (a.u.)")
+    axs[0].set_ylabel("Z (a.u.) - NN Solution")
     axs[0].add_patch(
         patches.Rectangle(
             (0, 0),
@@ -359,8 +375,8 @@ def plot_heatmaps_angle(
         cmap=CMAP_ANGLE,
     )
     # axs[1].quiver(x_slice, z_slice, Bx_pred, Bz_pred)
-    axs[1].set_xlabel("X (mm)")
-    axs[1].set_ylabel("Z (mm) - Analytical Solution")
+    axs[1].set_xlabel("X (a.u.)")
+    axs[1].set_ylabel("Z (a.u.) - Analytical Solution")
     axs[1].add_patch(
         patches.Rectangle(
             (0, 0),
@@ -382,8 +398,9 @@ def plot_heatmaps(
     model: torch.nn.Module,
     X: torch.Tensor,
     B: torch.Tensor,
+    save_path: str | Path | None,
 ):
-    grid = X[:, 4:]  # replace with 4 for anisotropic
+    grid = X[:, 5:]  # replace with 4 for anisotropic
     a = float(X[0, 0])
     b = float(X[0, 1])
 
@@ -398,7 +415,7 @@ def plot_heatmaps(
         return_abs=False,
     )
 
-    fig, axs = plot_heatmaps_amplitude(
+    fig1, _ = plot_heatmaps_amplitude(
         grid=grid.numpy(),
         amplitude_errors_baseline=amplitude_errors_baseline.numpy(),
         amplitude_errors_trained=amplitude_errors_trained.numpy(),
@@ -406,13 +423,20 @@ def plot_heatmaps(
         b=b,
     )
 
-    plt.show()
+    if save_path is not None:
+        fig1.savefig(f"{save_path}/amplitude_heatmap.png")
+    else:
+        plt.show()
 
-    fig, axs = plot_heatmaps_angle(
+    fig2, _ = plot_heatmaps_angle(
         grid=grid.numpy(),
         angle_errors_baseline=angle_errors_baseline.numpy(),
         angle_errors_trained=angle_errors_trained.numpy(),
         a=a,
         b=b,
     )
-    plt.show()
+
+    if save_path is not None:
+        fig2.savefig(f"{save_path}/angle_heatmap.png")
+    else:
+        plt.show()
