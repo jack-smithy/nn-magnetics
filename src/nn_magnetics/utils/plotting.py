@@ -383,7 +383,7 @@ def plot_heatmaps(
     X: torch.Tensor,
     B: torch.Tensor,
 ):
-    grid = X[:, 3:]  # replace with 4 for anisotropic
+    grid = X[:, 4:]  # replace with 4 for anisotropic
     a = float(X[0, 0])
     b = float(X[0, 1])
 

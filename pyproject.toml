@@ -36,9 +36,6 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/nn_magnetics"]
 
-[tool.uv.sources]
-magpylib = { path = "../magpylib", editable = true }
-
 [dependency-groups]
 dev = [
     "ipykernel>=6.29.5",

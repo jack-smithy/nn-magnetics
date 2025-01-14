@@ -5,7 +5,9 @@ import torch
 import torch.nn.functional as F
 from jaxtyping import Float
 import tqdm
+from pathlib import Path
 from torch import nn
+from copy import deepcopy
 
 from nn_magnetics.corrections import angle_amp_correction
 from nn_magnetics.utils.metrics import angle_error, relative_amplitude_error
@@ -50,6 +52,7 @@ class Network(nn.Module):
         )
         self.activation = activation
         self.do_output_activation = do_output_activation
+        self.best_weights = deepcopy(self).state_dict()
 
     def forward(
         self,
@@ -108,6 +111,7 @@ class Network(nn.Module):
         angle_errors = []
         amp_errors = []
 
+        best_loss = np.inf
         for _ in tqdm.tqdm(range(epochs), unit="epochs"):
             train_loss = self._train_step(train_loader, criterion, optimizer)
 
@@ -116,6 +120,9 @@ class Network(nn.Module):
                 angle_error,
                 amplitude_error,
             ) = self._valid_step(valid_loader, criterion)
+
+            if validation_loss < best_loss:
+                self.best_weights = deepcopy(self).state_dict()
 
             train_losses.append(train_loss)
             validation_losses.append(validation_loss)
@@ -134,6 +141,9 @@ class Network(nn.Module):
 
     def correct_ansatz(self, B_reduced, prediction):
         raise NotImplementedError()
+
+    def save(self, path: str | Path):
+        torch.save(self.best_weights, path)
 
 
 class FieldCorrectionNetwork(Network):
