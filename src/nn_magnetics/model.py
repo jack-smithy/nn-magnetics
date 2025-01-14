@@ -1,14 +1,16 @@
+from copy import deepcopy
+from pathlib import Path
 from typing import Callable
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-from jaxtyping import Float
 import tqdm
-from pathlib import Path
+from jaxtyping import Float
 from torch import nn
-from copy import deepcopy
+from torch.optim.lr_scheduler import LRScheduler
 
+import wandb
 from nn_magnetics.corrections import angle_amp_correction
 from nn_magnetics.utils.metrics import angle_error, relative_amplitude_error
 
@@ -21,6 +23,8 @@ class Network(nn.Module):
         in_features: int,
         hidden_dim_factor: int,
         out_features: int,
+        save_path: Path,
+        lr_scheduler: LRScheduler | None = None,
         activation: Activation = F.silu,
         do_output_activation=True,
     ) -> None:
@@ -53,6 +57,8 @@ class Network(nn.Module):
         self.activation = activation
         self.do_output_activation = do_output_activation
         self.best_weights = deepcopy(self).state_dict()
+        self.save_path = save_path
+        self.lr_scheduler = lr_scheduler
 
     def forward(
         self,
@@ -105,7 +111,7 @@ class Network(nn.Module):
 
             return np.mean(history), np.mean(angle_errors), np.mean(amplitude_errors)
 
-    def train_model(self, train_loader, valid_loader, criterion, optimizer, epochs):
+    def fit(self, train_loader, valid_loader, criterion, optimizer, epochs):
         train_losses = []
         validation_losses = []
         angle_errors = []
@@ -123,11 +129,25 @@ class Network(nn.Module):
 
             if validation_loss < best_loss:
                 self.best_weights = deepcopy(self).state_dict()
+                self.save()
+
+            if self.lr_scheduler is not None:
+                self.lr_scheduler.step()
 
             train_losses.append(train_loss)
             validation_losses.append(validation_loss)
             angle_errors.append(angle_error)
             amp_errors.append(amplitude_error)
+
+            if wandb.run is not None:
+                wandb.log(
+                    {
+                        "train_loss": train_loss,
+                        "validation_loss": validation_loss,
+                        "angle_error": angle_error,
+                        "amplitude_error": amplitude_error,
+                    }
+                )
 
         return train_losses, validation_losses, angle_errors, amp_errors
 
@@ -142,8 +162,8 @@ class Network(nn.Module):
     def correct_ansatz(self, B_reduced, prediction):
         raise NotImplementedError()
 
-    def save(self, path: str | Path):
-        torch.save(self.best_weights, path)
+    def save(self):
+        torch.save(self.best_weights, self.save_path / "best_weights.pt")
 
 
 class FieldCorrectionNetwork(Network):

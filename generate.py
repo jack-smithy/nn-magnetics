@@ -1,5 +1,6 @@
 import numpy as np
 from nn_magnetics.data.create_data import simulate_demag
+from wakepy import keep
 
 
 def simulate_task(index):
@@ -21,6 +22,11 @@ def simulate_task(index):
     np.savez(path, **data)
 
 
+def main():
+    with keep.running():
+        for idx in range(101, 401):
+            simulate_task(idx)
+
+
 if __name__ == "__main__":
-    for idx in range(1, 11):
-        simulate_task(idx)
+    main()
