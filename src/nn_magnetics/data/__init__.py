@@ -1,1 +1,1 @@
-from nn_magnetics.data.dataset import IsotropicData
+from nn_magnetics.data.dataset import IsotropicData, AnisotropicData

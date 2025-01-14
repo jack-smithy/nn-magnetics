@@ -9,6 +9,7 @@ eps = 1e-6
 
 def simulate_demag(a: float, b: float, chi: tuple, axis_coarseness: int = 26) -> dict:
     print("=" * 100)
+    assert len(chi) == 3
 
     magnet = magpy.magnet.Cuboid(polarization=(0, 0, 1), dimension=(a, b, 1))
     # magnet.susceptibility = (chi_perp, chi_perp, chi_long)  # type: ignore
@@ -54,9 +55,9 @@ def simulate_demag(a: float, b: float, chi: tuple, axis_coarseness: int = 26) ->
     return {
         "a": a,
         "b": b,
-        "chi_perp": chi[0],
-        "chi_long": chi[2],
-        # "chi": chi,
+        "chi_x": chi[0],
+        "chi_y": chi[1],
+        "chi_z": chi[2],
         "grid": grid,
         "grid_field": grid_field,
         "grid_field_ana": grid_field_ana,

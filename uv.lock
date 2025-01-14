@@ -668,46 +668,17 @@ wheels = [
 
 [[package]]
 name = "magpylib"
-version = "5.1.0.dev4"
-source = { editable = "../magpylib" }
+version = "5.1.1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "plotly" },
     { name = "scipy" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "coverage", marker = "extra == 'test'" },
-    { name = "imageio", extras = ["tifffile", "ffmpeg"], marker = "extra == 'test'" },
-    { name = "ipywidgets", marker = "extra == 'test'" },
-    { name = "jupyterlab", marker = "extra == 'binder'", specifier = ">=3.2" },
-    { name = "jupyterlab", marker = "extra == 'test'" },
-    { name = "jupyterlab-myst", marker = "extra == 'binder'" },
-    { name = "jupytext", marker = "extra == 'binder'" },
-    { name = "magpylib-material-response", marker = "extra == 'docs'" },
-    { name = "matplotlib", specifier = ">=3.6" },
-    { name = "myst-nb", marker = "extra == 'docs'" },
-    { name = "numpy", specifier = ">=1.23" },
-    { name = "numpy-stl", marker = "extra == 'docs'" },
-    { name = "pandas", marker = "extra == 'docs'" },
-    { name = "pandas", marker = "extra == 'test'" },
-    { name = "plotly", specifier = ">=5.16" },
-    { name = "pre-commit", marker = "extra == 'code-style'" },
-    { name = "pydata-sphinx-theme", marker = "extra == 'docs'" },
-    { name = "pylint", marker = "extra == 'test'", specifier = ">3.0" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=7.4" },
-    { name = "pyvista", marker = "extra == 'docs'" },
-    { name = "pyvista", marker = "extra == 'test'" },
-    { name = "scipy", specifier = ">=1.8" },
-    { name = "sphinx", marker = "extra == 'docs'", specifier = "==7.3" },
-    { name = "sphinx-copybutton", marker = "extra == 'docs'" },
-    { name = "sphinx-design", marker = "extra == 'docs'" },
-    { name = "sphinx-favicon", marker = "extra == 'docs'" },
-    { name = "sphinx-gallery", marker = "extra == 'docs'" },
-    { name = "sphinx-thebe", marker = "extra == 'docs'" },
-    { name = "tox", marker = "extra == 'test'", specifier = ">=4.11" },
+sdist = { url = "https://files.pythonhosted.org/packages/da/18/3d8e183b6f4540157cab2be92cfa6d295b77a5c98c4f01f28b6e00cfdc77/magpylib-5.1.1.tar.gz", hash = "sha256:be339e034fd72cb9792e95375fd2705c1c5c82e877eaafa280db80bc6851b6ef", size = 11024890 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c8/d1/c6ee8b2b02928eb7ae361ce240d60748b7015dd6c8a51d82396745e6eb13/magpylib-5.1.1-py3-none-any.whl", hash = "sha256:ec643faf433f0a01ff1eb64a4fbf6f55cb09c992533427f2c32bade81cb8c0b2", size = 188785 },
 ]
 
 [[package]]
@@ -942,7 +913,7 @@ requires-dist = [
     { name = "h5py", specifier = ">=3.12.1" },
     { name = "jax", specifier = ">=0.4.35" },
     { name = "jaxtyping", specifier = ">=0.2.36" },
-    { name = "magpylib", editable = "../magpylib" },
+    { name = "magpylib", specifier = ">=5.1.0" },
     { name = "magpylib-material-response", specifier = ">=0.3.0" },
     { name = "nbformat", specifier = ">=5.10.4" },
     { name = "numpy", specifier = ">=2.1.3" },
