@@ -105,7 +105,7 @@ def amplitude_correction(B: ArrayLike, preds: ArrayLike) -> Tuple[ArrayLike, ...
 def angle_amp_correction(
     B_reduced: Float[ArrayLike, "batch 3"],
     angles: Float[ArrayLike, "batch 3"],
-    amplitudes: Float[ArrayLike, "batch 1"],
-) -> ArrayLike:
+    amplitudes: torch.Tensor,
+) -> torch.Tensor:
     R = batch_rotation_matrices(angles)
     return amplitudes[:, None] * torch.einsum("nij,nj->ni", R, B_reduced)

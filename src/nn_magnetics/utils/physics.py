@@ -3,7 +3,7 @@ import torch
 from torch import Tensor
 
 
-def demagnetizing_factor(a, b, c):
+def demagnetizing_factor(a: float, b: float, c: float) -> float:
     norm = np.sqrt(a * a + b * b + c * c)
     normab = np.sqrt(a * a + b * b)
     normac = np.sqrt(a * a + c * c)

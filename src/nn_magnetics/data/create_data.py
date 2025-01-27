@@ -44,10 +44,10 @@ def simulate_demag(a: float, b: float, chi: tuple, axis_coarseness: int = 26) ->
     print("Calculating reduced field")
     cell_field = cm_demag.getM(cell_pos_all)
     mean_magnetization = np.mean(cell_field, axis=0)
-    demag_factor = magpy.mu_0 * mean_magnetization
+    reduced_polarization = magpy.mu_0 * mean_magnetization
 
     magnet_reduced = magpy.magnet.Cuboid(
-        polarization=demag_factor,
+        polarization=reduced_polarization,
         dimension=(a, b, 1),
     )
     grid_field_reduced = magnet_reduced.getB(grid)
@@ -62,5 +62,5 @@ def simulate_demag(a: float, b: float, chi: tuple, axis_coarseness: int = 26) ->
         "grid_field": grid_field,
         "grid_field_ana": grid_field_ana,
         "grid_field_reduced": grid_field_reduced,
-        "demagnetization_factor": demag_factor[2],
+        "reduced_polarization": reduced_polarization,
     }

@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 from copy import deepcopy
 from pathlib import Path
 from typing import Callable
 
+import warnings
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -23,7 +26,7 @@ class Network(nn.Module):
         in_features: int,
         hidden_dim_factor: int,
         out_features: int,
-        save_path: Path,
+        save_path: Path | None = None,
         lr_scheduler: LRScheduler | None = None,
         activation: Activation = F.silu,
         do_output_activation=True,
@@ -159,11 +162,16 @@ class Network(nn.Module):
         amp_errors = relative_amplitude_error(B_demag, B_corrected)
         return torch.mean(angle_errors), torch.mean(amp_errors)
 
-    def correct_ansatz(self, B_reduced, prediction):
+    def correct_ansatz(self, B_reduced, prediction) -> torch.Tensor:
         raise NotImplementedError()
 
     def save(self):
-        torch.save(self.best_weights, self.save_path / "best_weights.pt")
+        if self.save_path is not None:
+            torch.save(self.best_weights, self.save_path / "best_weights.pt")
+        else:
+            warnings.warn(
+                "You have tried to save a model without specifying a save path"
+            )
 
 
 class FieldCorrectionNetwork(Network):
@@ -172,11 +180,22 @@ class FieldCorrectionNetwork(Network):
 
 
 class AngleAmpCorrectionNetwork(Network):
-    def correct_ansatz(self, B_reduced, prediction):
+    def correct_ansatz(self, B_reduced, prediction) -> torch.Tensor:
+        B_reduced = B_reduced.type(torch.float32)
         assert prediction.shape[1] == 4
         angles, amplitudes = prediction[..., :3], prediction[..., 3]
         B_corrected = angle_amp_correction(B_reduced, angles, amplitudes)
         return B_corrected
+
+    @classmethod
+    def load_from_path(cls, path) -> AngleAmpCorrectionNetwork:
+        model = AngleAmpCorrectionNetwork(
+            in_features=8,
+            hidden_dim_factor=6,
+            out_features=4,
+        )
+        model.load_state_dict(torch.load(path, weights_only=True))
+        return model
 
 
 def get_num_params(model: torch.nn.Module, trainable_only: bool = False) -> int:
