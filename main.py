@@ -2,11 +2,10 @@ import datetime
 import json
 import os
 from pathlib import Path
-from typing import Type
 
 from torch import nn
-from torch.optim import Adam, Adagrad, Adamax, Optimizer
-from torch.optim.lr_scheduler import LinearLR, ExponentialLR
+from torch.optim import Adam
+from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import DataLoader
 from wakepy import keep
 
@@ -25,9 +24,9 @@ SAVE_PATH = Path(f"results/3dof_chi/{str(datetime.datetime.now())}")
 
 def main():
     config = {
-        "epochs": 3,
-        "batch_size": 256,
-        "learning_rate": 0.01,
+        "epochs": 150,
+        "batch_size": 128,
+        "learning_rate": 0.001,
         "shuffle_train": True,
         "hidden_dim_factor": 6,
         "weight_decay": 0,
@@ -45,8 +44,8 @@ def main():
     with open(f"{SAVE_PATH}/config.json", "w+") as f:
         json.dump(config, f)
 
-    train_data = AnisotropicData("data/3dof_chi/train_fast", device=DEVICE)
-    valid_data = AnisotropicData("data/3dof_chi/validation_fast", device=DEVICE)
+    train_data = AnisotropicData("data/3dof_chi/train", device=DEVICE)
+    valid_data = AnisotropicData("data/3dof_chi/validation", device=DEVICE)
 
     train_loader = DataLoader(
         train_data,
