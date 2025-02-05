@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from copy import deepcopy
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Type
 
 import warnings
 import numpy as np
 import torch
 import torch.nn.functional as F
+from torch import Tensor
 import tqdm
 from jaxtyping import Float
 from torch import nn
@@ -18,6 +19,8 @@ from nn_magnetics.corrections import angle_amp_correction
 from nn_magnetics.utils.metrics import angle_error, relative_amplitude_error
 
 type Activation = Callable[[torch.Tensor], torch.Tensor]
+
+epsilon = 1e-8  # Small value to prevent numerical issues
 
 
 class Network(nn.Module):
@@ -84,8 +87,12 @@ class Network(nn.Module):
         history = []
         for X, B in train_loader:
             B_demag, B_reduced = B[..., :3], B[..., 3:]
+
             prediction = self(X)
-            loss = criterion(B_demag, self.correct_ansatz(B_reduced, prediction))
+
+            B_corrected = self.correct_ansatz(B_reduced, prediction)
+            loss = criterion(B_demag, B_corrected)
+
             history.append(loss.item())
             optimizer.zero_grad()
             loss.backward()
@@ -102,7 +109,9 @@ class Network(nn.Module):
 
             for X, B in valid_loader:
                 B_demag, B_reduced = B[..., :3], B[..., 3:]
+
                 prediction = self(X)
+
                 B_corrected = self.correct_ansatz(B_reduced, prediction)
                 loss = criterion(B_demag, B_corrected).item()
 
@@ -165,6 +174,10 @@ class Network(nn.Module):
     def correct_ansatz(self, B_reduced, prediction) -> torch.Tensor:
         raise NotImplementedError()
 
+    @classmethod
+    def load_from_path(cls, path):
+        raise NotImplementedError()
+
     def save(self):
         if self.save_path is not None:
             torch.save(self.best_weights, self.save_path / "best_weights.pt")
@@ -175,11 +188,58 @@ class Network(nn.Module):
 
 
 class FieldCorrectionNetwork(Network):
+    def __init__(
+        self,
+        in_features: int,
+        hidden_dim_factor: int,
+        save_path: Path | None = None,
+        lr_scheduler: LRScheduler | None = None,
+        activation: Callable[[Tensor], Tensor] = F.silu,
+        do_output_activation=True,
+    ) -> None:
+        super().__init__(
+            in_features,
+            hidden_dim_factor,
+            3,
+            save_path,
+            lr_scheduler,
+            activation,
+            do_output_activation,
+        )
+
     def correct_ansatz(self, B_reduced, prediction):
         return B_reduced * prediction
 
+    @classmethod
+    def load_from_path(cls, path) -> FieldCorrectionNetwork:
+        model = FieldCorrectionNetwork(
+            in_features=8,
+            hidden_dim_factor=6,
+        )
+        model.load_state_dict(torch.load(path, weights_only=True))
+        return model
+
 
 class AngleAmpCorrectionNetwork(Network):
+    def __init__(
+        self,
+        in_features: int,
+        hidden_dim_factor: int,
+        save_path: Path | None = None,
+        lr_scheduler: LRScheduler | None = None,
+        activation: Callable[[Tensor], Tensor] = F.silu,
+        do_output_activation=True,
+    ) -> None:
+        super().__init__(
+            in_features,
+            hidden_dim_factor,
+            4,
+            save_path,
+            lr_scheduler,
+            activation,
+            do_output_activation,
+        )
+
     def correct_ansatz(self, B_reduced, prediction) -> torch.Tensor:
         B_reduced = B_reduced.type(torch.float32)
         assert prediction.shape[1] == 4
@@ -192,10 +252,53 @@ class AngleAmpCorrectionNetwork(Network):
         model = AngleAmpCorrectionNetwork(
             in_features=8,
             hidden_dim_factor=6,
-            out_features=4,
         )
         model.load_state_dict(torch.load(path, weights_only=True))
         return model
+
+
+class AmpCorrectionNetwork(Network):
+    def __init__(
+        self,
+        in_features: int,
+        hidden_dim_factor: int,
+        save_path: Path | None = None,
+        lr_scheduler: LRScheduler | None = None,
+        activation: Callable[[Tensor], Tensor] = F.silu,
+        do_output_activation=True,
+    ) -> None:
+        super().__init__(
+            in_features,
+            hidden_dim_factor,
+            1,
+            save_path,
+            lr_scheduler,
+            activation,
+            do_output_activation,
+        )
+
+    def correct_ansatz(self, B_reduced, prediction) -> torch.Tensor:
+        B_corrected = prediction * B_reduced.type(torch.float32)
+        return B_corrected
+
+    @classmethod
+    def load_from_path(cls, path) -> AngleAmpCorrectionNetwork:
+        model = AngleAmpCorrectionNetwork(
+            in_features=8,
+            hidden_dim_factor=6,
+        )
+        model.load_state_dict(torch.load(path, weights_only=True))
+        return model
+
+
+class RelativeErrorLoss(nn.Module):
+    def __init__(self, loss: Type[nn.Module] = nn.L1Loss) -> None:
+        super().__init__()
+        self.loss = loss()
+
+    def forward(self, B_demag, B_predicted):
+        error = torch.sum((B_demag - B_predicted) / B_demag * 100, dim=1)
+        return torch.mean(error)
 
 
 def get_num_params(model: torch.nn.Module, trainable_only: bool = False) -> int:

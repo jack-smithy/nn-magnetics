@@ -161,6 +161,97 @@ def plot_histograms(
         plt.show()
 
 
+def plot_component_error(X, B, model, save_path):
+    B_demag, B_reduced = B[..., :3], B[..., 3:]
+
+    with torch.no_grad():
+        predictions = model(X)
+        B_corrected = model.correct_ansatz(B_reduced, predictions)
+
+    field_measured = B_demag
+    field_simulated = B_corrected
+
+    fig, (ax1, ax2, ax3) = plt.subplots(nrows=1, ncols=3, figsize=(15, 5), sharey=True)
+    ax1.plot(
+        np.abs((field_measured[:, 0] - field_simulated[:, 0]) / field_measured[:, 0])
+        * 100
+    )
+    ax1.set_title("X")
+    ax1.set_ylabel("Relative Error (%)")
+    ax1.set_xlabel("Point")
+
+    ax2.plot(
+        np.abs((field_measured[:, 1] - field_simulated[:, 1]) / field_measured[:, 0])
+        * 100,
+    )
+    ax2.set_title("Y")
+    ax2.set_xlabel("Point")
+
+    ax3.plot(
+        np.abs((field_measured[:, 2] - field_simulated[:, 2]) / field_measured[:, 2])
+        * 100,
+    )
+    ax3.set_title("Z")
+    ax3.set_xlabel("Point")
+
+    fig.suptitle("Relative Error of NN Solution")
+
+    if save_path is not None:
+        plt.savefig(f"{save_path}/component-errors.png", format="png")
+    else:
+        plt.show()
+
+
+def plot_component_error_histograms(X, B, model, save_path):
+    B_demag, B_reduced = B[..., :3], B[..., 3:]
+
+    with torch.no_grad():
+        predictions = model(X)
+        B_corrected = model.correct_ansatz(B_reduced, predictions)
+
+    field_measured1 = B_demag.detach().numpy()
+    field_simulated1 = B_corrected.detach().numpy()
+
+    fig, (ax1, ax2, ax3) = plt.subplots(nrows=1, ncols=3, figsize=(15, 5), sharey=True)
+
+    mean = np.mean(
+        np.abs((field_measured1 - field_simulated1) / field_measured1) * 100,
+        axis=0,
+    )
+
+    ax1.hist(
+        np.abs((field_measured1[:, 0] - field_simulated1[:, 0]) / field_measured1[:, 0])
+        * 100,
+        bins=20,
+    )
+    ax1.set_title(f"X: Mean={round(float(mean[0]), 4)}")
+    ax1.set_ylabel("Count")
+    ax2.set_xlabel("Relative Error (%)")
+
+    ax2.hist(
+        np.abs((field_measured1[:, 1] - field_simulated1[:, 1]) / field_measured1[:, 0])
+        * 100,
+        bins=20,
+    )
+    ax2.set_title(f"Y: Mean={round(float(mean[1]), 4)}")
+    ax2.set_xlabel("Relative Error (%)")
+
+    ax3.hist(
+        np.abs((field_measured1[:, 2] - field_simulated1[:, 2]) / field_measured1[:, 2])
+        * 100,
+        bins=20,
+    )
+    ax3.set_title(f"Z: Mean={round(float(mean[2]), 4)}")
+    ax3.set_xlabel("Relative Error (%)")
+
+    fig.suptitle("Relative Error Frequency of NN Solution")
+
+    if save_path is not None:
+        plt.savefig(f"{save_path}/relative-error-histograms.png", format="png")
+    else:
+        plt.show()
+
+
 def plot_heatmaps_amplitude(
     grid: np.ndarray,
     amplitude_errors_baseline: np.ndarray,

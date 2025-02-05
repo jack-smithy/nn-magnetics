@@ -3,13 +3,20 @@ import datetime
 import os
 from wakepy import keep
 
-from nn_magnetics.optimize import fit, prepare_measurements, result_to_dict, evaluate
+from nn_magnetics.optimize import (
+    fit,
+    prepare_measurements,
+    prepare_measurements_mock,
+    result_to_dict,
+    evaluate,
+)
 
 SAVE_DIR = f"fits/{datetime.datetime.now()}"
 
 
 def main():
     polarization_magnitude = 1.2003
+    MODEL_PATH = ("results/3dof_chi/2025-02-04 16:13:41.822724/best_weights.pt",)
 
     (
         positions1,
@@ -21,14 +28,14 @@ def main():
     os.makedirs(f"{SAVE_DIR}")
 
     result = fit(
-        polarization_magnitude=polarization_magnitude,
         positions1=positions1,
         positions2_rotated=positions2_rotated,
         field_measured1=field_measured1,
         field_measured2_rotated=field_measured2_rotated,
-        maxiter=1000,
+        maxiter=50,
         popsize=40,
         save_path=SAVE_DIR,
+        model_path=MODEL_PATH,
     )
 
     results_dict = result_to_dict(result)
@@ -46,6 +53,7 @@ def main():
         field_measured1=field_measured1,
         field_measured2_rotated=field_measured2_rotated,
         save_dir=SAVE_DIR,
+        model_path=MODEL_PATH,
     )
 
 
