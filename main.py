@@ -2,20 +2,30 @@ import datetime
 import json
 import os
 from pathlib import Path
+import cProfile
 
 from torch import nn
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import DataLoader
 from wakepy import keep
+import torch.nn.functional as F
 
 import wandb
 from nn_magnetics.data.dataset import AnisotropicData
-from nn_magnetics.model import AngleAmpCorrectionNetwork
+from nn_magnetics.model import (
+    AngleAmpCorrectionNetwork,
+    FieldCorrectionNetwork,
+    AmpCorrectionNetwork,
+    RelativeErrorLoss,
+    get_num_params,
+)
 from nn_magnetics.utils.plotting import (
     plot_heatmaps,
     plot_histograms,
     plot_loss,
+    plot_component_error,
+    plot_component_error_histograms,
 )
 
 DEVICE = "cpu"
@@ -24,8 +34,8 @@ SAVE_PATH = Path(f"results/3dof_chi/{str(datetime.datetime.now())}")
 
 def main():
     config = {
-        "epochs": 150,
-        "batch_size": 128,
+        "epochs": 50,
+        "batch_size": 256,
         "learning_rate": 0.001,
         "shuffle_train": True,
         "hidden_dim_factor": 6,
@@ -33,8 +43,10 @@ def main():
         "optimizer": "adam",
         "lr_scheduler": "exponential",
         "gamma": 1,
+        "network_type": "FieldCorrection",
+        "train_path": "train",
+        "validation_path": "validation",
     }
-
     wandb.init(project="3dof-chi", config=config)
     assert wandb.run is not None
 
@@ -44,8 +56,15 @@ def main():
     with open(f"{SAVE_PATH}/config.json", "w+") as f:
         json.dump(config, f)
 
-    train_data = AnisotropicData("data/3dof_chi/train", device=DEVICE)
-    valid_data = AnisotropicData("data/3dof_chi/validation", device=DEVICE)
+    train_data = AnisotropicData(
+        f"data/3dof_chi/{config["train_path"]}",
+        device=DEVICE,
+    )
+
+    valid_data = AnisotropicData(
+        f"data/3dof_chi/{config["validation_path"]}",
+        device=DEVICE,
+    )
 
     train_loader = DataLoader(
         train_data,
@@ -57,12 +76,15 @@ def main():
         batch_size=config["batch_size"],
     )
 
-    model = AngleAmpCorrectionNetwork(
+    model = FieldCorrectionNetwork(
         in_features=8,
         hidden_dim_factor=config["hidden_dim_factor"],
-        out_features=4,
         save_path=SAVE_PATH,
+        activation=F.silu,
     ).to(DEVICE)
+
+    num_params = get_num_params(model)
+    print(f"Trainable parameters: {num_params}")
 
     loss = nn.L1Loss()
 
@@ -94,11 +116,12 @@ def main():
     )
 
     X, B = valid_data.get_magnets()
-    plot_histograms(X, B, model, SAVE_PATH)
 
+    plot_histograms(X, B, model, SAVE_PATH)
+    plot_component_error(X[0], B[0], model, SAVE_PATH)
     plot_heatmaps(model, X[0], B[0], SAVE_PATH)
+    plot_component_error_histograms(X[0], B[0], model, SAVE_PATH)
 
 
 if __name__ == "__main__":
-    with keep.running():
-        main()
+    main()
