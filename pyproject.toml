@@ -1,6 +1,6 @@
 [project]
 name = "nn-magnetics"
-version = "0.1.0"
+version = "0.1.1"
 description = "Add your description here"
 readme = "README.md"
 authors = [
@@ -27,6 +27,11 @@ dependencies = [
     "optax>=0.2.4",
     "einops>=0.8.0",
     "beartype>=0.19.0",
+    "scikit-learn>=1.6.1",
+    "autograd>=1.7.0",
+    "pandas>=2.2.3",
+    "torch-geometric>=2.6.1",
+    "torch-sparse>=0.6.18",
 ]
 
 [build-system]

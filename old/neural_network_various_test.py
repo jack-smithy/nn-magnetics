@@ -134,7 +134,7 @@ with torch.no_grad():
     # Test out inference with 5 samples from the original test set
     for i in range(len(input_data)):
         X_sample = input_data[i, :]
-        X_sample = torch.tensor(X_sample, dtype=torch.float32)
+        X_sample = torch.tensor(X_sample, dtype=torch.float64)
         start_time = time.perf_counter()
         y_pred = model(X_sample)
         end_time = time.perf_counter()

@@ -92,3 +92,40 @@ def batch_rotation_matrices(angles: Tensor) -> Tensor:
 
     # # Combine rotations by matrix multiplication: Rz * Ry * Rx
     return Rz @ Ry @ Rx
+
+
+def normalize_quaternion(q: Tensor):
+    return q / q.norm(p=2, dim=1, keepdim=True)
+
+
+def invert_quaternion(q: Tensor):
+    _q = q.clone()
+    _q[:, 1:] *= -1
+    return _q / torch.sum(torch.pow(_q, 2), dim=1, keepdim=True)
+
+
+def multiply_quaternions(q1: Tensor, q2: Tensor) -> Tensor:
+    a1, b1, c1, d1 = q1[:, 0], q1[:, 1], q1[:, 2], q1[:, 3]
+    a2, b2, c2, d2 = q2[:, 0], q2[:, 1], q2[:, 2], q2[:, 3]
+
+    a3 = a1 * a2 - b1 * b2 - c1 * c2 - d1 * d2
+    b3 = a1 * b2 + b1 * a2 + c1 * d2 - d1 * c2
+    c3 = a1 * c2 - b1 * d2 + c1 * a2 + d1 * b2
+    d3 = a1 * d2 + b1 * c2 - c1 * b2 + d1 * a2
+
+    return torch.cat(
+        [
+            a3.unsqueeze(0),
+            b3.unsqueeze(0),
+            c3.unsqueeze(0),
+            d3.unsqueeze(0),
+        ]
+    ).T
+
+
+if __name__ == "__main__":
+    q1 = 10 * torch.rand((10, 4), dtype=torch.float64)
+    print(q1)
+    q1_inv = invert_quaternion(q1)
+    q3 = multiply_quaternions(q1, q1_inv)
+    print(q3)

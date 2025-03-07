@@ -16,15 +16,15 @@ def simulate_task(index):
     if a > b:
         a, b = b, a
 
-    print(f"Starting simuation: {index}")
-    data = simulate_demag(a, b, chi)
-    path = f"data/3dof_chi/train/data_{index}.npz"
+    print(f"Starting simuation: {index+1}")
+    data = simulate_demag(a, b, chi, calculate_edge_index=True)
+    path = f"data/3dof_chi_graph/train/data_{index+1}.npz"
     np.savez(path, **data)
 
 
 def main():
     with keep.running():
-        for idx in range(101, 401):
+        for idx in range(200):
             simulate_task(idx)
 
 

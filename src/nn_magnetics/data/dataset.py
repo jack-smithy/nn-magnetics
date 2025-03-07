@@ -6,6 +6,8 @@ from pathlib import Path
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+from torch_geometric.data import Data, Batch
+from torch_geometric.loader import DataLoader, NeighborLoader
 
 _DTYPES = {
     "mps": torch.float32,
@@ -141,8 +143,8 @@ class AnisotropicData(Dataset):
 
     def __getitem__(self, index: int) -> t.Tuple[torch.Tensor, torch.Tensor]:
         return (
-            torch.tensor(self.X[index], dtype=torch.float32, device=self.device),
-            torch.tensor(self.B[index], dtype=torch.float32, device=self.device),
+            torch.tensor(self.X[index], device=self.device),
+            torch.tensor(self.B[index], device=self.device),
         )
 
     def get_magnets(self) -> t.Tuple[torch.Tensor, torch.Tensor]:
@@ -154,8 +156,8 @@ class AnisotropicData(Dataset):
                 X = torch.cat((X, torch.tensor(_X).unsqueeze(0)))
                 B = torch.cat((B, torch.tensor(_B).unsqueeze(0)))
         return (
-            X.type(torch.float32).to(self.device),
-            B.type(torch.float32).to(self.device),
+            X.to(self.device),
+            B.to(self.device),
         )
 
     def _get_all_data(self):
@@ -201,6 +203,86 @@ class AnisotropicData(Dataset):
         )
 
         return input_data_new, output_data_new
+
+
+def _get_graph(path: Path) -> Data:
+    data = np.load(path)
+    grid = data["grid"]
+    length = len(grid)
+
+    edge_index = data["edge_index"]
+    assert edge_index is not None
+
+    input_data_new = np.vstack(
+        (
+            np.ones(length) * data["a"],
+            np.ones(length) * data["b"],
+            np.ones(length) * data["chi_x"],
+            np.ones(length) * data["chi_y"],
+            np.ones(length) * data["chi_z"],
+            grid[:, 0] / data["a"],
+            grid[:, 1] / data["b"],
+            grid[:, 2],
+        )
+    ).T
+
+    # get the corresponding labels
+    output_data_new = np.concatenate(
+        (data["grid_field"], data["grid_field_reduced"]),
+        axis=1,
+    )
+
+    x = torch.from_numpy(input_data_new)
+    y = torch.from_numpy(output_data_new)
+
+    edge_index = torch.from_numpy(edge_index)
+
+    return Data(x=x, y=y, edge_index=edge_index)
+
+
+def get_graphs_batched(
+    path: Path | str,
+    batch_size: int,
+    shuffle: bool,
+) -> NeighborLoader:
+    if isinstance(path, str):
+        path = Path(path)
+
+    graphs = []
+
+    with ThreadPoolExecutor() as e:
+        futures = [e.submit(_get_graph, file) for file in path.iterdir()]
+        for future in as_completed(futures):
+            graph = future.result()
+            graphs.append(graph)
+
+    data_batch = Batch.from_data_list(graphs)
+
+    loader = NeighborLoader(
+        data=data_batch,  # type: ignore
+        num_neighbors=[6, 6, 6, 6],
+        batch_size=batch_size,
+        shuffle=shuffle,
+    )
+
+    return loader
+
+
+def get_graphs(path: Path | str) -> DataLoader:
+    if isinstance(path, str):
+        path = Path(path)
+
+    graphs = []
+
+    with ThreadPoolExecutor() as e:
+        futures = [e.submit(_get_graph, file) for file in path.iterdir()]
+        for future in as_completed(futures):
+            graph = future.result()
+            graphs.append(graph)
+
+    loader = DataLoader(graphs)
+
+    return loader
 
 
 ##############################

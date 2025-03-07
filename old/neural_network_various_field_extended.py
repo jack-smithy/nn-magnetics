@@ -122,10 +122,10 @@ optimizer = Adam(model.parameters(), lr=0.00001)
 X_train, X_test, y_train, y_test = train_test_split(
     input_data, output_data, train_size=0.7, shuffle=True
 )
-X_train = torch.tensor(X_train, dtype=torch.float32)
-y_train = torch.tensor(y_train, dtype=torch.float32)
-X_test = torch.tensor(X_test, dtype=torch.float32)
-y_test = torch.tensor(y_test, dtype=torch.float32)
+X_train = torch.tensor(X_train, dtype=torch.float64)
+y_train = torch.tensor(y_train, dtype=torch.float64)
+X_test = torch.tensor(X_test, dtype=torch.float64)
+y_test = torch.tensor(y_test, dtype=torch.float64)
 
 # training parameters
 n_epochs = 100  # number of epochs to run

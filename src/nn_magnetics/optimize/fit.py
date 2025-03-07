@@ -1,17 +1,21 @@
+import json
 from typing import Dict, List, Tuple
 
-import json
 import h5py
-import magpylib as magpy
 import matplotlib
 import matplotlib.axes
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
+from magpylib.magnet import Cuboid
+from magpylib import Collection
+from magpylib_material_response import demag, meshing
 from scipy.optimize import OptimizeResult
 from scipy.optimize import differential_evolution as de
-from magpylib_material_response import meshing, demag
 
 from nn_magnetics.optimize import define_movement_side, define_movement_under
+from nn_magnetics.predictions import B
+from nn_magnetics.utils.metrics import relative_amplitude_error, angle_error
 
 
 def read_hdf5(path: str = "scans") -> Tuple[np.ndarray, np.ndarray]:
@@ -24,7 +28,55 @@ def read_hdf5(path: str = "scans") -> Tuple[np.ndarray, np.ndarray]:
     return field_measured1, field_measured2
 
 
+def prepare_measurements_mock(path: str = "scans"):
+    _, s1 = define_movement_under()
+    _, s2 = define_movement_side()
+
+    positions1 = s1.position
+    positions2 = s2.position.reshape((4, -1, 3))
+
+    magnet = Cuboid(dimension=(5, 5, 5), polarization=(0, 0, 1))
+    magnet.susceptibility = (0, 0, 0.5)  # type: ignore
+    mesh = meshing.mesh_Cuboid(magnet, target_elems=100)
+    demag.apply_demag(mesh, inplace=True)
+
+    field_measured1, field_measured2 = mesh.getB(positions1), mesh.getB(positions2)
+
+    field_measured1[:, 2] = -field_measured1[:, 2]
+    field_measured2[:, 2] = -field_measured2[:, 2]
+
+    field_measured2 = field_measured2.reshape((4, -1, 3))
+
+    field_measured2_rotated = np.copy(field_measured2)
+    positions2_rotated = np.copy(positions2)
+
+    field_measured2_rotated[1, :, 0] = field_measured2[1, :, 1]
+    field_measured2_rotated[1, :, 1] = -field_measured2[1, :, 0]
+    field_measured2_rotated[2, :, 0] = -field_measured2[2, :, 0]
+    field_measured2_rotated[2, :, 1] = -field_measured2[2, :, 1]
+    field_measured2_rotated[3, :, 0] = -field_measured2[3, :, 1]
+    field_measured2_rotated[3, :, 1] = field_measured2[3, :, 0]
+
+    positions2_rotated[1, :, 0] = positions2[1, :, 1]
+    positions2_rotated[1, :, 1] = -positions2[1, :, 0]
+    positions2_rotated[2, :, 0] = -positions2[2, :, 0]
+    positions2_rotated[2, :, 1] = -positions2[2, :, 1]
+    positions2_rotated[3, :, 0] = -positions2[3, :, 1]
+    positions2_rotated[3, :, 1] = positions2[3, :, 0]
+
+    return positions1, positions2_rotated, field_measured1, field_measured2_rotated
+
+
 def prepare_measurements(path: str = "scans"):
+    _, s1 = define_movement_under()
+    _, s2 = define_movement_side()
+
+    positions1 = s1.position
+    positions2 = s2.position.reshape((4, -1, 3))
+
+    positions1 /= 1000  # in m
+    positions2 /= 1000  # in m
+
     field_measured1, field_measured2 = read_hdf5(path)
 
     field_measured1[:, 2] = -field_measured1[:, 2]
@@ -34,15 +86,6 @@ def prepare_measurements(path: str = "scans"):
     field_measured2 /= 1000  # in T
 
     field_measured2 = field_measured2.reshape((4, -1, 3))
-
-    _, s1 = define_movement_under()
-    _, s2 = define_movement_side()
-
-    positions1 = s1.position
-    positions2 = s2.position.reshape((4, -1, 3))
-
-    positions1 /= 1000  # in m
-    positions2 /= 1000  # in m
 
     field_measured1 /= 2  # wrong LSB -> mT conversion
     field_measured2 /= 2  # wrong LSB -> mT conversion
@@ -73,12 +116,12 @@ def cost_function(
     positions2_rotated,
     field_measured1,
     field_measured2_rotated,
+    model_path,
 ):
     (
         polarization_magnitude,
         polarization_phi,
         polarization_theta,
-        magnet_angle,
         magnet_position_x,
         magnet_position_y,
         magnet_position_z,
@@ -91,8 +134,9 @@ def cost_function(
         offset_x,
         offset_y,
         offset_z,
-        chi_perp,
-        chi_long,
+        chi_x,
+        chi_y,
+        chi_z,
     ) = x
 
     dimension = np.array(
@@ -111,24 +155,40 @@ def cost_function(
         )
     )
 
-    magnet = magpy.magnet.Cuboid(
-        position=(magnet_position_x, magnet_position_y, magnet_position_z),
-        dimension=dimension,
-        polarization=polarization,
-        # susceptibility=np.array([chi_perp, chi_perp, chi_long]),
-    )
+    position = np.array((magnet_position_x, magnet_position_y, magnet_position_z))
 
-    # magnet.susceptibility = (chi_perp, chi_perp, chi_long)  # type: ignore
-    magnet.rotate_from_angax(magnet_angle, "z", degrees=False)
+    susceptibility = np.array((chi_x, chi_y, chi_z))
 
-    # mesh = meshing.mesh_Cuboid(magnet, target_elems=50, verbose=False)
-    # demag.apply_demag(mesh)
+    cuboid = Cuboid(position=position, dimension=dimension, polarization=polarization)
+    cuboid.susceptibility = susceptibility  # type: ignore
+    mesh = meshing.mesh_Cuboid(cuboid=cuboid, target_elems=10)
 
-    # field_simulated1 = mesh.getB(positions1)
-    # field_simulated2 = mesh.getB(positions2_rotated)
+    # field_simulated1 = B(
+    #     position=position,
+    #     dimension=dimension,
+    #     polarization=polarization,
+    #     susceptibility=susceptibility,
+    #     points=positions1,
+    #     model_path=model_path,
+    # )
 
-    field_simulated1 = magnet.getB(positions1)
-    field_simulated2 = magnet.getB(positions2_rotated)
+    field_simulated1 = mesh.getB(positions1)
+
+    field_simulated2 = []
+    for direction in positions2_rotated:
+        #     field_simulated2_direction = B(
+        #         position=position,
+        #         dimension=dimension,
+        #         polarization=polarization,
+        #         susceptibility=susceptibility,
+        #         points=direction,
+        #         model_path=model_path,
+        #     )
+        #     field_simulated2.append(field_simulated2_direction)
+        field_simulated2_direction = mesh.getB(direction)
+        field_simulated2.append(field_simulated2_direction)
+
+    field_simulated2 = np.array(field_simulated2)
 
     ###########
     # sensor characterization
@@ -182,13 +242,13 @@ def cost_function(
 
 
 def fit(
-    polarization_magnitude,
     positions1,
     positions2_rotated,
     field_measured1,
     field_measured2_rotated,
     maxiter,
     save_path,
+    model_path,
     popsize=40,
 ) -> OptimizeResult:
     def _save_intermediate(x, val):
@@ -200,13 +260,9 @@ def fit(
     result = de(
         func=cost_function,
         bounds=(
-            (
-                polarization_magnitude - 0.0001,
-                polarization_magnitude + 0.0001,
-            ),  # polarization magnitude
+            (0, 2),  # polarization magnitude
             (np.pi / 2 - np.pi / 10, np.pi / 2 + np.pi / 10),  # polarization phi
             (np.pi / 2 - np.pi / 10, np.pi / 2 + np.pi / 10),  # polarization theta
-            (-np.pi / 10, np.pi / 10),  # magnet angle
             (-1e-3, 1e-3),  # magnet pos x
             (-1e-3, 1e-3),  # magnet pos y
             (-1e-3, 1e-3),  # magnet pos z
@@ -219,21 +275,23 @@ def fit(
             (-1e-3, 1e-3),  # offset x
             (-1e-3, 1e-3),  # offset y
             (-1e-3, 1e-3),  # offset z
-            (0.0, 1.0),  # chi_perp
-            (0.0, 1.0),  # chi_long
+            (0.0, 1.0),  # chi_x
+            (0.0, 1.0),  # chi_y
+            (0.0, 1.0),  # chi_z
         ),
         args=(
             positions1,
             positions2_rotated,
             field_measured1,
             field_measured2_rotated,
+            model_path,
         ),
         maxiter=maxiter,
         popsize=popsize,
         workers=-1,
         disp=True,
         callback=_save_intermediate,
-        polish=False,
+        polish=True,
     )
 
     return result
@@ -245,13 +303,13 @@ def evaluate(
     positions2_rotated,
     field_measured1,
     field_measured2_rotated,
+    model_path,
     save_dir=None,
 ):
     (
         polarization_magnitude,
         polarization_phi,
         polarization_theta,
-        magnet_angle,
         magnet_position_x,
         magnet_position_y,
         magnet_position_z,
@@ -264,8 +322,9 @@ def evaluate(
         offset_x,
         offset_y,
         offset_z,
-        chi_perp,
-        chi_long,
+        chi_x,
+        chi_y,
+        chi_z,
     ) = x
 
     dimension = np.array(
@@ -284,23 +343,63 @@ def evaluate(
         )
     )
 
-    magnet = magpy.magnet.Cuboid(
-        position=(magnet_position_x, magnet_position_y, magnet_position_z),
-        dimension=dimension,
-        polarization=polarization,
-        # susceptibility=np.array([chi_perp, chi_perp, chi_long]),
-    )
-    # magnet.susceptibility = (chi_perp, chi_perp, chi_long)  # type: ignore
-    magnet.rotate_from_angax(magnet_angle, "z", degrees=False)
+    position = np.array((magnet_position_x, magnet_position_y, magnet_position_z))
 
-    # mesh = meshing.mesh_Cuboid(magnet, target_elems=50, verbose=False)
-    # NN.apply_NN(mesh)
+    susceptibility = np.array((chi_x, chi_y, chi_z))
 
-    # field_simulated1 = mesh.getB(positions1)
-    # field_simulated2 = mesh.getB(positions2_rotated)
+    # field_simulated1 = B(
+    #     position=position,
+    #     dimension=dimension,
+    #     polarization=polarization,
+    #     susceptibility=susceptibility,
+    #     points=positions1,
+    #     model_path=model_path,
+    # )
 
-    field_simulated1 = magnet.getB(positions1)
-    field_simulated2 = magnet.getB(positions2_rotated)
+    # field_simulated2 = []
+    # for direction in positions2_rotated:
+    #     field_simulated2_direction = B(
+    #         position=position,
+    #         dimension=dimension,
+    #         polarization=polarization,
+    #         susceptibility=susceptibility,
+    #         points=direction,
+    #         model_path=model_path,
+    #     )
+    #     field_simulated2.append(field_simulated2_direction)
+
+    # field_simulated2 = np.array(field_simulated2)
+
+    cuboid = Cuboid(position=position, dimension=dimension, polarization=polarization)
+    cuboid.susceptibility = susceptibility  # type: ignore
+    mesh = meshing.mesh_Cuboid(cuboid=cuboid, target_elems=10)
+
+    # field_simulated1 = B(
+    #     position=position,
+    #     dimension=dimension,
+    #     polarization=polarization,
+    #     susceptibility=susceptibility,
+    #     points=positions1,
+    #     model_path=model_path,
+    # )
+
+    field_simulated1 = mesh.getB(positions1)
+
+    field_simulated2 = []
+    for direction in positions2_rotated:
+        #     field_simulated2_direction = B(
+        #         position=position,
+        #         dimension=dimension,
+        #         polarization=polarization,
+        #         susceptibility=susceptibility,
+        #         points=direction,
+        #         model_path=model_path,
+        #     )
+        #     field_simulated2.append(field_simulated2_direction)
+        field_simulated2_direction = mesh.getB(direction)
+        field_simulated2.append(field_simulated2_direction)
+
+    field_simulated2 = np.array(field_simulated2)
 
     ###########
     # sensor characterization
@@ -406,6 +505,30 @@ def evaluate(
     else:
         plt.show()
 
+    ###########################
+    ### Plot Overall Errors ###
+    ###########################
+
+    fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(6, 10))
+    angle_err = angle_error(
+        torch.from_numpy(field_measured1),
+        torch.from_numpy(field_simulated1),
+    )
+    amp_err = relative_amplitude_error(
+        torch.from_numpy(field_measured1),
+        torch.from_numpy(field_simulated1),
+        return_abs=True,
+    )
+
+    ax1.plot(angle_err)
+    ax2.plot(amp_err)
+
+    fig.suptitle("Errors of NN Solution")
+    if save_dir is not None:
+        plt.savefig(f"{save_dir}/angle-amp-errors.png", format="png")
+    else:
+        plt.show()
+
     ############################
     ### Plot Absolute Errors ###
     ############################
@@ -507,7 +630,6 @@ def result_to_dict(result: OptimizeResult) -> Dict[str, float]:
         "polarization_magnitude",
         "polarization_phi",
         "polarization_theta",
-        "magnet_angle",
         "magnet_pos_x",
         "magnet_pos_y",
         "magnet_pos_z",
@@ -520,8 +642,9 @@ def result_to_dict(result: OptimizeResult) -> Dict[str, float]:
         "offset_x",
         "offset_y",
         "offset_z",
-        "chi_perp",
-        "chi_long",
+        "chi_x",
+        "chi_y",
+        "chi_z",
     ]
 
     results_dict = {}
@@ -536,7 +659,6 @@ def arr_to_dict(xs):
         "polarization_magnitude",
         "polarization_phi",
         "polarization_theta",
-        "magnet_angle",
         "magnet_pos_x",
         "magnet_pos_y",
         "magnet_pos_z",
@@ -549,8 +671,9 @@ def arr_to_dict(xs):
         "offset_x",
         "offset_y",
         "offset_z",
-        "chi_perp",
-        "chi_long",
+        "chi_x",
+        "chi_y",
+        "chi_z",
     ]
 
     results_dict = {}
