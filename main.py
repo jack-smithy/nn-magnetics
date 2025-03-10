@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 
+import numpy as np
 import torch.nn.functional as F
 from torch import nn
 import torch
@@ -14,6 +15,8 @@ import wandb
 from nn_magnetics.data import AnisotropicData
 from nn_magnetics.models import (
     QuaternionNet,
+    FieldCorrectionNetwork,
+    AngleAmpCorrectionNetwork,
     get_num_params,
 )
 from nn_magnetics.utils.plotting import (
@@ -23,19 +26,21 @@ from nn_magnetics.utils.plotting import (
 )
 
 DEVICE = "cpu"
-SAVE_PATH = Path(f"results/3dof_chi_quaternion/{str(datetime.datetime.now())}")
+SAVE_PATH = Path(f"results/paper/{str(datetime.datetime.now())}")
 
 config = {
+    "model": "Quaternion",
     "epochs": 45,
-    "batch_size": 268,
-    "learning_rate": 0.00135,
+    "batch_size": 1000,
+    "learning_rate": 0.0008,
     "hidden_dim_factor": 6,
-    "gamma": 0.96,
+    "gamma": 0.95,
+    "activation": "tanh",
 }
 
 
 def main():
-    wandb.init(project="3dof-chi", config=config)
+    wandb.init(project="paper", config=config)
 
     assert wandb.run is not None
     os.makedirs(SAVE_PATH, exist_ok=True)
@@ -45,7 +50,6 @@ def main():
 
     train_data = AnisotropicData("data/3dof_chi/train", device=DEVICE)
     valid_data = AnisotropicData("data/3dof_chi/validation", device=DEVICE)
-    test_data = AnisotropicData("data/3dof_chi/test")
 
     train_loader = DataLoader(
         train_data,
@@ -62,13 +66,10 @@ def main():
         in_features=8,
         hidden_dim_factor=wandb.config.hidden_dim_factor,
         save_path=SAVE_PATH,
-        activation=F.silu,
+        activation=F.tanh,
         save_weights=True,
         do_output_activation=True,
     ).to(torch.float64)
-
-    num_params = get_num_params(model)
-    print(f"Trainable parameters: {num_params}")
 
     loss = nn.L1Loss()
     optimizer = Adam(params=model.parameters(), lr=wandb.config.learning_rate)
@@ -83,11 +84,21 @@ def main():
         wandb.config.epochs,
     )
 
+    learning = {
+        "train_losses": train_losses,
+        "valid_losses": valid_losses,
+        "angle_errs": angle_errs,
+        "amp_errs": amp_errs,
+    }
+
+    with open(f"{SAVE_PATH}/learning.json", "w+") as f:
+        json.dump(learning, f)
+
     del model
 
     model = QuaternionNet.load_from_path(
         SAVE_PATH / "best_weights.pt",
-        wandb.config.hidden_dim_factor,
+        6,
         activation=F.silu,
         save_path=None,
         save_weights=False,
@@ -105,11 +116,11 @@ def main():
 
     X, B = valid_data.get_magnets()
 
-    X_test, B_test = test_data.get_magnets()
-
     plot_histograms(X, B, model, SAVE_PATH, tag="_valid_set")
-    plot_histograms(X_test, B_test, model, SAVE_PATH, tag="_test_set")
-    plot_heatmaps(model, X[0], B[0], SAVE_PATH)
+
+    X_mag, B_mag = X[1], B[1]
+
+    plot_heatmaps(model, X_mag, B_mag, SAVE_PATH, tag=f"{1}")
 
     wandb.finish()
 

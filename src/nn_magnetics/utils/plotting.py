@@ -332,7 +332,6 @@ def plot_heatmaps_amplitude(
     amplitude_errors_trained: np.ndarray,
     a: float,
     b: float,
-    height: float | None = None,
 ):
     eps_x = 0.01
     eps_y = 0.01
@@ -341,28 +340,27 @@ def plot_heatmaps_amplitude(
     y = grid.T[1] * b
     z = grid.T[2]
 
-    if height is None:
-        height = y[0]
-
-    mask = y == height
+    mask = y == y[0]
     x_slice = x[mask]
     z_slice = z[mask]
 
-    amplitude_errors_trained_slice = amplitude_errors_trained[mask]
-    amplitude_errors_baseline_slice = amplitude_errors_baseline[mask]
+    amplitude_errors_trained_slice = np.clip(amplitude_errors_trained[mask], -6, 6)
+    amplitude_errors_baseline_slice = np.clip(amplitude_errors_baseline[mask], -6, 6)
 
     x_bins = np.linspace(min(x_slice), max(x_slice), 25)
     z_bins = np.linspace(min(z_slice), max(z_slice), 25)
 
-    vmin = min(
-        min(amplitude_errors_trained_slice),
-        min(amplitude_errors_baseline_slice),
-    )
+    # vmin = min(
+    #     min(amplitude_errors_trained_slice),
+    #     min(amplitude_errors_baseline_slice),
+    # )
 
-    vmax = max(
-        max(amplitude_errors_trained_slice),
-        max(amplitude_errors_baseline_slice),
-    )
+    # vmax = max(
+    #     max(amplitude_errors_trained_slice),
+    #     max(amplitude_errors_baseline_slice),
+    # )
+
+    vmin, vmax = -6, 6
 
     norm_amplitude = colors.TwoSlopeNorm(
         vmin=vmin,
@@ -461,7 +459,6 @@ def plot_heatmaps_angle(
     angle_errors_trained: np.ndarray,
     a: float,
     b: float,
-    height: float | None = None,
 ):
     eps_x = 0.01
     eps_y = 0.01
@@ -470,15 +467,14 @@ def plot_heatmaps_angle(
     y = grid.T[1] * b
     z = grid.T[2]
 
-    if height is None:
-        height = y[0]
-
-    mask = y == height
+    mask = y == y[0]
     x_slice = x[mask]
     z_slice = z[mask]
 
-    angle_errors_trained_slice = angle_errors_trained[mask]
-    angle_errors_baseline_slice = angle_errors_baseline[mask]
+    angle_errors_trained_slice = np.clip(angle_errors_trained[mask], 0, 3)
+    angle_errors_baseline_slice = np.clip(angle_errors_baseline[mask], 0, 3)
+
+    vmin, vmax = 0, 3
 
     x_bins = np.linspace(min(x_slice), max(x_slice), 25)
     z_bins = np.linspace(min(z_slice), max(z_slice), 25)
@@ -524,6 +520,8 @@ def plot_heatmaps_angle(
         heatmap_angle_trained.T,
         shading="auto",
         cmap=CMAP_ANGLE,
+        vmin=vmin,
+        vmax=vmax,
     )
     # axs[0].quiver(x_slice, z_slice, Bx, Bz)
     axs[0].set_xlabel("X (a.u.)")
@@ -546,6 +544,8 @@ def plot_heatmaps_angle(
         heatmap_amplitude_baseline.T,
         shading="auto",
         cmap=CMAP_ANGLE,
+        vmin=vmin,
+        vmax=vmax,
     )
     # axs[1].quiver(x_slice, z_slice, Bx_pred, Bz_pred)
     axs[1].set_xlabel("X (a.u.)")
@@ -572,7 +572,7 @@ def plot_heatmaps(
     X: torch.Tensor,
     B: torch.Tensor,
     save_path: str | Path | None,
-    height: float | None = None,
+    tag: str = "",
 ):
     grid = X[:, 5:]  # replace with 4 for anisotropic
     a = float(X[0, 0])
@@ -595,11 +595,10 @@ def plot_heatmaps(
         amplitude_errors_trained=amplitude_errors_trained.numpy(),
         a=a,
         b=b,
-        height=height,
     )
 
     if save_path is not None:
-        fig1.savefig(f"{save_path}/amplitude_heatmap_y={height}.png")
+        fig1.savefig(f"{save_path}/amplitude_heatmap_{tag}.png")
     else:
         plt.show()
 
@@ -609,11 +608,10 @@ def plot_heatmaps(
         angle_errors_trained=angle_errors_trained.numpy(),
         a=a,
         b=b,
-        height=height,
     )
 
     if save_path is not None:
-        fig2.savefig(f"{save_path}/angle_heatmap_y={height}.png")
+        fig2.savefig(f"{save_path}/angle_heatmap_{tag}.png")
     else:
         plt.show()
 
