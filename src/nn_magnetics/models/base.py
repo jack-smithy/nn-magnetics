@@ -71,23 +71,23 @@ class Network(nn.Module):
         self.train()
 
         history = []
-        divergences = []
+        loss_ratio = []
         for X, B in train_loader:
             # get the prediction (forward pass)
             B_demag = B[..., :3]
             B_predicted, divB = self(X)
 
             # calculate loss
-            loss = criterion(B_demag, B_predicted, divB)
+            loss, ratio = criterion(B_demag, B_predicted, divB)
             history.append(loss.item())
-            divergences.append(divB.mean().item())
+            loss_ratio.append(ratio.item())
 
             # backward pass
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-        return np.mean(history), np.mean(divergences)
+        return np.mean(history), np.mean(loss_ratio)
 
     def _valid_step(self, valid_loader, criterion):
         self.eval()
@@ -95,7 +95,7 @@ class Network(nn.Module):
         history = []
         angle_errors = []
         amplitude_errors = []
-        divergences = []
+        loss_ratio = []
 
         for X, B in valid_loader:
             # get the prediction (forward pass)
@@ -103,20 +103,20 @@ class Network(nn.Module):
             B_predicted, divB = self(X)
 
             # calculate loss
-            loss = criterion(B_demag, B_predicted, divB)
+            loss, ratio = criterion(B_demag, B_predicted, divB)
             history.append(loss.item())
-            divergences.append(divB.mean().item())
 
             # calculate eval metrics
             angle_err, amp_err = self._calculate_metrics(B_demag, B_predicted)
             angle_errors.append(angle_err.detach().numpy())
             amplitude_errors.append(amp_err.detach().numpy())
+            loss_ratio.append(ratio.item())
 
         return (
             np.mean(history),
             np.mean(angle_errors),
             np.mean(amplitude_errors),
-            np.mean(divergences),
+            np.mean(loss_ratio),
         )
 
     def fit(self, train_loader, valid_loader, criterion, optimizer, epochs):
@@ -124,21 +124,25 @@ class Network(nn.Module):
         validation_losses = []
         angle_errors = []
         amp_errors = []
-        train_divergences = []
-        validation_divergences = []
+        train_ratios = []
+        validation_ratios = []
 
         self.best_loss = np.inf
         for _ in tqdm.tqdm(range(epochs), unit="epochs"):
-            train_loss, train_divergence = self._train_step(
-                train_loader, criterion, optimizer
-            )
+            (
+                train_loss,
+                train_ratio,
+            ) = self._train_step(train_loader, criterion, optimizer)
 
             (
                 validation_loss,
                 angle_error,
                 amplitude_error,
-                validation_divergence,
-            ) = self._valid_step(valid_loader, criterion)
+                valid_ratio,
+            ) = self._valid_step(
+                valid_loader,
+                criterion,
+            )
 
             if self.save_weights and validation_loss < self.best_loss:
                 self.best_weights = deepcopy(self).state_dict()
@@ -151,8 +155,8 @@ class Network(nn.Module):
             validation_losses.append(validation_loss)
             angle_errors.append(angle_error)
             amp_errors.append(amplitude_error)
-            train_divergences.append(train_divergence)
-            validation_divergences.append(validation_divergence)
+            train_ratios.append(train_ratio)
+            validation_ratios.append(valid_ratio)
 
             if wandb.run is not None:
                 wandb.log(
@@ -161,6 +165,8 @@ class Network(nn.Module):
                         "validation_loss": validation_loss,
                         "angle_error": angle_error,
                         "amplitude_error": amplitude_error,
+                        "train_ratios": train_ratio,
+                        "validation_ratios": valid_ratio,
                     }
                 )
 
@@ -169,8 +175,6 @@ class Network(nn.Module):
             validation_losses,
             angle_errors,
             amp_errors,
-            train_divergences,
-            validation_divergences,
         )
 
     def evaluate_model(self, eval_loader, criterion):

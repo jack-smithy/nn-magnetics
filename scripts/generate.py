@@ -3,7 +3,7 @@ from nn_magnetics.data.create_data import simulate_demag
 
 
 def main():
-    for idx in range(200):
+    for idx in range(150):
         chi_x = np.random.uniform(0.0, 1.0)
         chi_y = np.random.uniform(0.0, 1.0)
         chi_z = np.random.uniform(0.0, 1.0)
@@ -16,7 +16,7 @@ def main():
 
         print(f"Starting simuation: {idx+1}")
         data = simulate_demag(a, b, chi_x, chi_y, chi_z)
-        path = f"data/3dof_chi_v2/validation/data_{idx+1}.npz"
+        path = f"data/3dof_chi_v2/train_medium/data_{idx+1}.npz"
         np.savez(path, **data)
 
 

@@ -10,11 +10,15 @@ class DivergenceLoss(nn.Module):
         self.lambda_ = lambda_
         self.loss_fn = loss_fn
 
-    def forward(self, B_true: Tensor, B_pred: Tensor, divB: Tensor) -> Tensor:
+    def forward(
+        self, B_true: Tensor, B_pred: Tensor, divB: Tensor
+    ) -> tuple[Tensor, Tensor]:
         data_loss = self.loss_fn(B_true, B_pred)
         physics_loss = divB.abs().mean()
 
-        return data_loss + self.lambda_ * physics_loss
+        ratio = data_loss / (self.lambda_ * physics_loss)
+
+        return data_loss + self.lambda_ * physics_loss, ratio
 
 
 def get_num_params(model: torch.nn.Module, trainable_only: bool = False) -> int:

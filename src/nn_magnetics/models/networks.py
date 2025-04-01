@@ -36,7 +36,6 @@ class FieldCorrectionNetwork(Network):
         save_path: Path | None = None,
         lr_scheduler: LRScheduler | None = None,
         activation: Callable[[Tensor], Tensor] = F.silu,
-        do_output_activation=True,
         save_weights: bool = True,
     ) -> None:
         super().__init__(
@@ -46,7 +45,6 @@ class FieldCorrectionNetwork(Network):
             save_path,
             lr_scheduler,
             activation,
-            do_output_activation,
             save_weights=save_weights,
         )
 
