@@ -15,12 +15,24 @@ from nn_magnetics.utils.metrics import (
 )
 
 
+def plot_div_loss(train_div, valid_div):
+    n_epochs = len(train_div)
+    plt.plot(train_div, label="Train")
+    plt.plot(valid_div, label="Validation")
+
+    plt.xlim((0, n_epochs - 1))
+    plt.legend()
+    plt.xlabel("Epochs")
+    plt.ylabel("Divergence")
+
+    plt.show()
+
+
 def plot_loss(
     train_loss: list,
     validation_loss: list,
     angle_error: list,
     amplitude_error: list,
-    n_epochs: int,
     save_path: Path | None,
     baselines: tuple | None = None,  # (loss, angle, amp)
     log_scale: bool = False,
@@ -33,6 +45,8 @@ def plot_loss(
 
         if log_scale:
             a.set_yscale("log")
+
+    n_epochs = len(train_loss)
 
     ax[0].set_xlim((0, n_epochs - 1))
     ax[0].plot(train_loss, label="Train")
@@ -173,15 +187,17 @@ def plot_histograms(X, B, model, save_path, figsize=(8, 8), bins=20, tag=""):
 
     for Bi in B:
         angle_error, amp_error = calculate_metrics_baseline(Bi)
-        angle_errors_baseline.append(torch.mean(angle_error))
-        amplitude_errors_baseline.append(torch.mean(amp_error))
+        angle_errors_baseline.append(torch.mean(angle_error).numpy(force=True))
+        amplitude_errors_baseline.append(torch.mean(amp_error).numpy(force=True))
 
     angle_errors, amplitude_errors = [], []
 
     for Xi, Bi in zip(X, B):
         angle_error, amp_error = calculate_metrics_trained(Xi, Bi, model)
-        angle_errors.append(torch.nan_to_num(torch.mean(angle_error), nan=180.0))
-        amplitude_errors.append(torch.mean(amp_error))
+        angle_errors.append(
+            torch.nan_to_num(torch.mean(angle_error), nan=180.0).numpy(force=True)
+        )
+        amplitude_errors.append(torch.mean(amp_error).numpy(force=True))
 
     fig, ax = plt.subplots(
         ncols=2,
@@ -336,8 +352,8 @@ def plot_heatmaps_amplitude(
     eps_x = 0.01
     eps_y = 0.01
 
-    x = grid.T[0] * a
-    y = grid.T[1] * b
+    x = grid.T[0]
+    y = grid.T[1]
     z = grid.T[2]
 
     mask = y == y[0]
@@ -390,6 +406,7 @@ def plot_heatmaps_amplitude(
         bins=[x_bins, z_bins],
         weights=amplitude_errors_baseline_slice,
     )
+
     heatmap_counts_amplitude_baseline, _, _ = np.histogram2d(
         x_slice, z_slice, bins=[x_bins, z_bins]
     )
@@ -463,8 +480,8 @@ def plot_heatmaps_angle(
     eps_x = 0.01
     eps_y = 0.01
 
-    x = grid.T[0] * a
-    y = grid.T[1] * b
+    x = grid.T[0]
+    y = grid.T[1]
     z = grid.T[2]
 
     mask = y == y[0]
@@ -590,9 +607,9 @@ def plot_heatmaps(
     )
 
     fig1, _ = plot_heatmaps_amplitude(
-        grid=grid.numpy(),
-        amplitude_errors_baseline=amplitude_errors_baseline.numpy(),
-        amplitude_errors_trained=amplitude_errors_trained.numpy(),
+        grid=grid.numpy(force=True),
+        amplitude_errors_baseline=amplitude_errors_baseline.numpy(force=True),
+        amplitude_errors_trained=amplitude_errors_trained.numpy(force=True),
         a=a,
         b=b,
     )
@@ -603,9 +620,9 @@ def plot_heatmaps(
         plt.show()
 
     fig2, _ = plot_heatmaps_angle(
-        grid=grid.numpy(),
-        angle_errors_baseline=angle_errors_baseline.numpy(),
-        angle_errors_trained=angle_errors_trained.numpy(),
+        grid=grid.numpy(force=True),
+        angle_errors_baseline=angle_errors_baseline.numpy(force=True),
+        angle_errors_trained=angle_errors_trained.numpy(force=True),
         a=a,
         b=b,
     )
@@ -627,3 +644,53 @@ def one_magnet_errors(X, B, model, save_path):
 
     angle_mean = round(float(np.mean(angle_err, where=~np.isnan(angle_err))), 3)
     angle_std = round(float(np.mean(angle_err, where=~np.isnan(angle_err))), 2)
+
+
+def quiverplot(grid, B_hom, B_demag):
+    x, z = grid[..., 0], grid[..., 2]
+
+    Bx, Bz = B_hom[..., 0], B_hom[..., 2]
+    Bdx, Bdz = B_demag[..., 0], B_demag[..., 2]
+
+    fig, ax = plt.subplots()
+
+    ax.quiver(x, z, Bx, Bz, color="blue", scale=8, label="$B$ Analytical", width=0.004)
+    ax.quiver(
+        x, z, Bdx, Bdz, color="red", scale=8, label="$B$ w/ Demag Effects", width=0.004
+    )
+
+    # ax.legend(loc=2)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_xlabel("x [a.u.]")
+    ax.set_ylabel("z [a.u.]")
+
+    ax.add_patch(
+        patches.Rectangle(
+            (0, 0),
+            0.5,
+            0.5,
+            fill=False,
+            lw=1,
+            alpha=0.8,
+            color="k",
+        )
+    )
+
+    ax.legend(loc=2)
+
+    x1, x2, z1, z2 = 0.51, 0.58, 0.51, 0.55
+
+    axins = ax.inset_axes(
+        (0.7, 0.45, 0.5, 0.5),
+        xlim=(x1, x2),
+        ylim=(z1, z2),
+        xticklabels=[],
+        yticklabels=[],
+    )
+    ax.indicate_inset_zoom(axins, edgecolor="k", lw=1)
+
+    axins.quiver(x, z, Bx, Bz, color="blue", scale=1, width=0.012)
+    axins.quiver(x, z, Bdx, Bdz, color="red", scale=1, width=0.012)
+
+    return fig, ax

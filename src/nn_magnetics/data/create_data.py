@@ -1,11 +1,10 @@
 import magpylib as magpy
+import matplotlib.pyplot as plt
 import numpy as np
-from magpylib import Collection
 from magpylib_material_response.demag import apply_demag
 from magpylib_material_response.meshing import mesh_Cuboid
-from nn_magnetics.utils.physics import demagnetizing_factor
-import matplotlib.pyplot as plt
-from nn_magnetics.graph.create_graphs import compute_edge_index_fast
+
+from nn_magnetics.utils.physics import Nz_elementwise
 
 eps = 1e-6
 
@@ -45,7 +44,7 @@ def generate_points_random(axis_coarseness, a, b, scale_factor=3.5):
     return np.array(points)
 
 
-def generate_points_grid(axis_coarseness, a, b):
+def generate_points_grid(axis_coarseness, a, b, eps=1e-5):
     _grid = []
     for xx in np.linspace(eps, a * 2.5, axis_coarseness):
         for yy in np.linspace(eps, b * 2.5, axis_coarseness):
@@ -63,14 +62,14 @@ def generate_points_grid(axis_coarseness, a, b):
 def simulate_demag(
     a: float,
     b: float,
-    chi: tuple,
+    chi_x: float,
+    chi_y: float,
+    chi_z: float,
     axis_coarseness: int = 26,
     points: str = "grid",
     display: bool = False,
-    calculate_edge_index: bool = False,
 ) -> dict:
     print("=" * 100)
-    assert len(chi) == 3
 
     print("Creating measurement grid")
     if points == "grid":
@@ -80,51 +79,37 @@ def simulate_demag(
     else:
         raise ValueError(f"{points} is not a strategy")
 
-    edge_index = None
-    if calculate_edge_index:
-        edge_index = compute_edge_index_fast(grid)
-
     if display:
         display_points(grid, a, b, 1)
 
     ######### calculate demag field ###############
     magnet = magpy.magnet.Cuboid(polarization=(0, 0, 1), dimension=(a, b, 1))
-    magnet.susceptibility = chi  # type: ignore
 
     print("Meshing magnet and applying demag effects")
-    cm = mesh_Cuboid(magnet, target_elems=int(100))
-    cm_demag: Collection = apply_demag(cm, inplace=False)  # type: ignore
-    grid_field = cm_demag.getB(grid)
+    mesh = mesh_Cuboid(magnet, target_elems=int(100))
+    susceptibility = (chi_x, chi_y, chi_z)
+    apply_demag(mesh, susceptibility=susceptibility, inplace=True)
+    grid_field = mesh.getB(grid)
 
     print("Calculating reduced field")
-    cell_pos_all = np.array([cell.position for cell in cm])
-
-    cell_field = cm_demag.getM(cell_pos_all)
-    mean_magnetization = np.mean(cell_field, axis=0)
-    reduced_polarization = magpy.mu_0 * mean_magnetization
-
+    Nz = Nz_elementwise(a, b, 1)
+    reduced_polarization = (0, 0, 1 / (1 + chi_z * Nz))
     magnet_reduced = magpy.magnet.Cuboid(
         polarization=reduced_polarization,
         dimension=(a, b, 1),
     )
     grid_field_reduced = magnet_reduced.getB(grid)
 
-    # grid_field_reduced_scaled = grid_field_ana * Pz_reduced
-
     data = {
         "a": a,
         "b": b,
-        "chi_x": chi[0],
-        "chi_y": chi[1],
-        "chi_z": chi[2],
+        "chi_x": chi_x,
+        "chi_y": chi_y,
+        "chi_z": chi_z,
         "grid": grid,
         "grid_field": grid_field,
         "grid_field_reduced": grid_field_reduced,
-        # "grid_field_reduced_calc": grid_field_reduced_calc,
-        # "reduced_polarization": (0, 0, Pz_reduced),
-        "reduced_polarization_calc": reduced_polarization,
-        # "grid_field_reduced_scaled": grid_field_reduced_scaled,
-        "edge_index": edge_index,
+        "reduced_polarization": reduced_polarization,
     }
 
     return data
@@ -185,11 +170,30 @@ def display_points(filtered_points, a, b, c):
 
 
 if __name__ == "__main__":
-    simulate_demag(
-        1,
-        1,
-        (0.1, 0.1, 0.1),
-        display=True,
-        axis_coarseness=8,
-        calculate_edge_index=True,
-    )
+    from nn_magnetics.utils.metrics import relative_amplitude_error, angle_error
+    from nn_magnetics.data import AnisotropicData
+
+    X, B = AnisotropicData("data/3dof_chi_v2/validation_fast").get_magnets()
+    X, B = X.numpy(), B.numpy()
+    B_precomputed = B[0, :, 3:]
+    a, b = X[0, 0, 0], X[0, 0, 1]
+    chix, chiy, chiz = X[0, 0, 2], X[0, 0, 3], X[0, 0, 4]
+    grid_precomputed = X[0, :, 5:]
+
+    data = simulate_demag(a, b, chix, chiy, chiz, 26)
+    B_reduced = data["grid_field_reduced"]
+
+    grid_precomputed[..., 0] *= a
+    grid_precomputed[..., 1] *= b
+
+    Dz = Nz_elementwise(a, b, 1)
+
+    B_calc = magpy.magnet.Cuboid(
+        dimension=(a, b, 1),
+        polarization=(0, 0, 1 / (1 + Dz * chiz)),
+    ).getB(grid_precomputed)
+
+    angle_err = np.mean(angle_error(B_precomputed, B_calc))
+    amp_err = np.mean(relative_amplitude_error(B_precomputed, B_calc, True))
+
+    print(angle_err, amp_err)

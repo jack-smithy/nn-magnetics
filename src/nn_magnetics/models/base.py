@@ -67,77 +67,80 @@ class Network(nn.Module):
         self.lr_scheduler = lr_scheduler
         self.save_weights = save_weights
 
-    def forward(self, x: Tensor) -> Tensor:
-        x = self.activation(self.linear1(x))
-        x = self.activation(self.linear2(x))
-        x = self.activation(self.linear3(x))
-        x = self.activation(self.linear4(x))
-        x = self.activation(self.linear5(x))
-
-        if self.do_output_activation:
-            return self.activation(self.output(x))
-
-        return self.output(x)
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
+        raise NotImplementedError()
 
     def _train_step(self, train_loader, criterion, optimizer):
         self.train()
 
         history = []
+        divergences = []
         for X, B in train_loader:
             # get the prediction (forward pass)
-            B_demag, B_reduced = B[..., :3], B[..., 3:]
-            B_prediction = self(X)
-            B_corrected = self.correct_ansatz(B_reduced, B_prediction)
+            B_demag = B[..., :3]
+            B_predicted, divB = self(X)
 
             # calculate loss
-            loss = criterion(B_demag, B_corrected)
+            loss = criterion(B_demag, B_predicted, divB)
             history.append(loss.item())
+            divergences.append(divB.mean().item())
 
             # backward pass
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-        return np.mean(history)
+        return np.mean(history), np.mean(divergences)
 
     def _valid_step(self, valid_loader, criterion):
         self.eval()
-        with torch.no_grad():
-            history = []
-            angle_errors = []
-            amplitude_errors = []
 
-            for X, B in valid_loader:
-                # get the prediction (forward pass)
-                B_demag, B_reduced = B[..., :3], B[..., 3:]
-                B_prediction = self(X)
-                B_corrected = self.correct_ansatz(B_reduced, B_prediction)
+        history = []
+        angle_errors = []
+        amplitude_errors = []
+        divergences = []
 
-                # calculate loss
-                loss = criterion(B_demag, B_corrected)
-                history.append(loss.item())
+        for X, B in valid_loader:
+            # get the prediction (forward pass)
+            B_demag = B[..., :3]
+            B_predicted, divB = self(X)
 
-                # calculate eval metrics
-                angle_err, amp_err = self._calculate_metrics(B_demag, B_corrected)
-                angle_errors.append(angle_err)
-                amplitude_errors.append(amp_err)
+            # calculate loss
+            loss = criterion(B_demag, B_predicted, divB)
+            history.append(loss.item())
+            divergences.append(divB.mean().item())
 
-            return np.mean(history), np.mean(angle_errors), np.mean(amplitude_errors)
+            # calculate eval metrics
+            angle_err, amp_err = self._calculate_metrics(B_demag, B_predicted)
+            angle_errors.append(angle_err.detach().numpy())
+            amplitude_errors.append(amp_err.detach().numpy())
+
+        return (
+            np.mean(history),
+            np.mean(angle_errors),
+            np.mean(amplitude_errors),
+            np.mean(divergences),
+        )
 
     def fit(self, train_loader, valid_loader, criterion, optimizer, epochs):
         train_losses = []
         validation_losses = []
         angle_errors = []
         amp_errors = []
+        train_divergences = []
+        validation_divergences = []
 
         self.best_loss = np.inf
         for _ in tqdm.tqdm(range(epochs), unit="epochs"):
-            train_loss = self._train_step(train_loader, criterion, optimizer)
+            train_loss, train_divergence = self._train_step(
+                train_loader, criterion, optimizer
+            )
 
             (
                 validation_loss,
                 angle_error,
                 amplitude_error,
+                validation_divergence,
             ) = self._valid_step(valid_loader, criterion)
 
             if self.save_weights and validation_loss < self.best_loss:
@@ -151,6 +154,8 @@ class Network(nn.Module):
             validation_losses.append(validation_loss)
             angle_errors.append(angle_error)
             amp_errors.append(amplitude_error)
+            train_divergences.append(train_divergence)
+            validation_divergences.append(validation_divergence)
 
             if wandb.run is not None:
                 wandb.log(
@@ -162,7 +167,14 @@ class Network(nn.Module):
                     }
                 )
 
-        return train_losses, validation_losses, angle_errors, amp_errors
+        return (
+            train_losses,
+            validation_losses,
+            angle_errors,
+            amp_errors,
+            train_divergences,
+            validation_divergences,
+        )
 
     def evaluate_model(self, eval_loader, criterion):
         self._valid_step(eval_loader, criterion)

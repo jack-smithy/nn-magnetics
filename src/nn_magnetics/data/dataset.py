@@ -120,7 +120,12 @@ class IsotropicData(Dataset):
 
 
 class AnisotropicData(Dataset):
-    def __init__(self, path: Path | str, device: str = "cpu") -> None:
+    def __init__(
+        self,
+        path: Path | str,
+        device: str = "cpu",
+        dtype=torch.float64,
+    ) -> None:
         super().__init__()
 
         if isinstance(path, str):
@@ -128,6 +133,7 @@ class AnisotropicData(Dataset):
 
         self.path = path
         self.device = device
+        self.dtype = dtype
 
         self.X, self.B = self._get_all_data()
 
@@ -143,8 +149,12 @@ class AnisotropicData(Dataset):
 
     def __getitem__(self, index: int) -> t.Tuple[torch.Tensor, torch.Tensor]:
         return (
-            torch.tensor(self.X[index], device=self.device),
-            torch.tensor(self.B[index], device=self.device),
+            torch.tensor(
+                self.X[index], device=self.device, dtype=self.dtype, requires_grad=True
+            ),
+            torch.tensor(
+                self.B[index], device=self.device, dtype=self.dtype, requires_grad=True
+            ),
         )
 
     def get_magnets(self) -> t.Tuple[torch.Tensor, torch.Tensor]:
@@ -153,8 +163,8 @@ class AnisotropicData(Dataset):
             futures = [e.submit(self._get_magnet, file) for file in self.path.iterdir()]
             for future in as_completed(futures):
                 _X, _B = future.result()
-                X = torch.cat((X, torch.tensor(_X).unsqueeze(0)))
-                B = torch.cat((B, torch.tensor(_B).unsqueeze(0)))
+                X = torch.cat((X, torch.tensor(_X, dtype=self.dtype).unsqueeze(0)))
+                B = torch.cat((B, torch.tensor(_B, dtype=self.dtype).unsqueeze(0)))
         return (
             X.to(self.device),
             B.to(self.device),
@@ -190,8 +200,10 @@ class AnisotropicData(Dataset):
                 np.ones(length) * data["chi_x"],
                 np.ones(length) * data["chi_y"],
                 np.ones(length) * data["chi_z"],
-                grid[:, 0] / data["a"],
-                grid[:, 1] / data["b"],
+                # grid[:, 0] / data["a"],
+                # grid[:, 1] / data["b"],
+                grid[:, 0],
+                grid[:, 1],
                 grid[:, 2],
             )
         ).T

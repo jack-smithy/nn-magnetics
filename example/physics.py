@@ -1,65 +1,19 @@
-import numpy as np
 import torch
 from torch import Tensor
 
 
-def Dz_cuboid(dimensions: Tensor) -> Tensor:
-    assert dimensions.shape[1] == 3
-    assert torch.allclose(
-        dimensions[..., 2], torch.ones(dimensions.shape[0], dtype=torch.double)
-    )
-
-    a, b = dimensions[..., 0], dimensions[..., 1]
-
-    norm = torch.sqrt(a * a + b * b + 1)
-    normab = torch.sqrt(a * a + b * b)
-    normac = torch.sqrt(a * a + 1)
-    normbc = torch.sqrt(b * b + 1)
-
-    return (1 / np.pi) * (
-        (b**2 - 1) / (2 * b) * torch.log((norm - a) / (norm + a))
-        + (a**2 - 1) / (2 * a) * torch.log((norm - b) / (norm + b))
-        + b / (2) * torch.log((normab + a) / (normab - a))
-        + a / (2) * torch.log((normab + b) / (normab - b))
-        + 1 / (2 * a) * torch.log((normbc - b) / (normbc + b))
-        + 1 / (2 * b) * torch.log((normac - a) / (normac + a))
-        + 2 * torch.arctan((a * b) / (norm))
-        + (a**3 + b**3 - 2) / (3 * a * b)
-        + (a**2 + b**2 - 2) / (3 * a * b) * norm
-        + 1 / (a * b) * (torch.sqrt(a**2 + 1) + torch.sqrt(b**2 + 1))
-        - ((a**2 + b**2) ** (3 / 2) + (b**2 + 1) ** (3 / 2) + (1 + a**2) ** (3 / 2))
-        / (3 * a * b)
-    )
-
-
-def Nz_elementwise(a: float, b: float, c: float) -> float:
-    norm = np.sqrt(a * a + b * b + c * c)
-    normab = np.sqrt(a * a + b * b)
-    normac = np.sqrt(a * a + c * c)
-    normbc = np.sqrt(b * b + c * c)
-
-    return (1 / np.pi) * (
-        (b**2 - c**2) / (2 * b * c) * np.log((norm - a) / (norm + a))
-        + (a**2 - c**2) / (2 * a * c) * np.log((norm - b) / (norm + b))
-        + b / (2 * c) * np.log((normab + a) / (normab - a))
-        + a / (2 * c) * np.log((normab + b) / (normab - b))
-        + c / (2 * a) * np.log((normbc - b) / (normbc + b))
-        + c / (2 * b) * np.log((normac - a) / (normac + a))
-        + 2 * np.arctan((a * b) / (c * norm))
-        + (a**3 + b**3 - 2 * c**3) / (3 * a * b * c)
-        + (a**2 + b**2 - 2 * c**2) / (3 * a * b * c) * norm
-        + c / (a * b) * (np.sqrt(a**2 + c**2) + np.sqrt(b**2 + c**2))
-        - (
-            (a**2 + b**2) ** (3 / 2)
-            + (b**2 + c**2) ** (3 / 2)
-            + (c**2 + a**2) ** (3 / 2)
-        )
-        / (3 * a * b * c)
-    )
-
-
 def batch_rotation_matrices(angles: Tensor) -> Tensor:
-    assert angles.shape[0] > 0 and angles.shape[1] == 3
+    """
+    Takes a matrix of euler angles `batch x (alpha, beta, gamma)` and calculates the associated rotation matrix.
+    We can't use scipy.spatial.rotations as this uses C code under the hood so we lose the gradients for backpropogation.
+
+    Args:
+        angles (Tensor): NN predicted angles of shape (n, 3)
+
+    Returns:
+        Tensor: Associated rotation matrices of shape (n, 3, 3)
+    """
+    assert angles.ndim == 2 and angles.shape[0] > 0 and angles.shape[1] == 3
 
     alpha = angles.T[0]
     beta = angles.T[1]
@@ -119,37 +73,8 @@ def batch_rotation_matrices(angles: Tensor) -> Tensor:
         dim=-1,
     ).reshape(-1, 3, 3)
 
-    # # Combine rotations by matrix multiplication: Rz * Ry * Rx
+    # # Combine rotations by matrix multiplication
     return Rz @ Ry @ Rx
-
-
-def normalize_quaternion(q: Tensor):
-    return q / q.norm(p=2, dim=1, keepdim=True)
-
-
-def invert_quaternion(q: Tensor):
-    _q = q.clone()
-    _q[:, 1:] *= -1
-    return _q / torch.sum(torch.pow(_q, 2), dim=1, keepdim=True)
-
-
-def multiply_quaternions(q1: Tensor, q2: Tensor) -> Tensor:
-    a1, b1, c1, d1 = q1[:, 0], q1[:, 1], q1[:, 2], q1[:, 3]
-    a2, b2, c2, d2 = q2[:, 0], q2[:, 1], q2[:, 2], q2[:, 3]
-
-    a3 = a1 * a2 - b1 * b2 - c1 * c2 - d1 * d2
-    b3 = a1 * b2 + b1 * a2 + c1 * d2 - d1 * c2
-    c3 = a1 * c2 - b1 * d2 + c1 * a2 + d1 * b2
-    d3 = a1 * d2 + b1 * c2 - c1 * b2 + d1 * a2
-
-    return torch.cat(
-        [
-            a3.unsqueeze(0),
-            b3.unsqueeze(0),
-            c3.unsqueeze(0),
-            d3.unsqueeze(0),
-        ]
-    ).T
 
 
 def Bfield_homogeneous(
@@ -158,6 +83,8 @@ def Bfield_homogeneous(
     polarizations: Tensor,
 ) -> Tensor:
     """B-field of homogeneously magnetized cuboids in Cartesian Coordinates.
+
+    Implementation taken from magpylib and rewritten in pytorch.
 
     The cuboids sides are parallel to the coordinate axes. The geometric centers of the
     cuboids lie in the origin. The output is proportional to the polarization magnitude
@@ -327,8 +254,31 @@ def Bfield_homogeneous(
     return B
 
 
-def divB(B: Tensor, observers: Tensor):
-    assert observers.requires_grad
+def divB(B: Tensor, x: Tensor) -> Tensor:
+    """
+    Calculated divergence(B) w.r.t. spatial coordinates x=(x, y, z) for a batch.
+
+    `torch.autograd.grad` calculates the Jacobian Vector Product (JVP), i.e.
+    J^T.v where J is the Jacobian matrix ∂B/∂x and v is
+    the vector specified by grad_outputs. Here we use v = e_i to extract columns of the Jacobian matrix.
+
+    For B_i, we compute the gradient with respect to all observer coordinates, which gives us the i-th row of the Jacobian:
+
+    [∂B_i/∂x, ∂B_i/∂y, ∂B_i/∂z]
+
+    We then extract ∂B_i/∂x_i (the diagonal element) and sum over i=0,1,2.
+
+    This approach is equivalent to computing tr(J(B)), where J(B) is the Jacobian matrix
+    of the B.
+
+    Args:
+        B (Tensor): Calculated B field with shape (n_samples, 3)
+        x (Tensor): Tensor of spatial input coordinates with shape (n_samples, 3). Must have `requires_grad=True`.
+
+    Returns:
+        Tensor: divergence(B) with shape (n_samples,)
+    """
+    assert x.requires_grad
     assert B.requires_grad
 
     n_samples = B.shape[0]
@@ -338,10 +288,52 @@ def divB(B: Tensor, observers: Tensor):
     for i in range(3):
         grad_Bi = torch.autograd.grad(
             B[:, i],
-            observers,
+            x,
             grad_outputs=torch.ones_like(B[:, i]),
             retain_graph=True,
         )[0]
         div += grad_Bi[:, i]
 
     return div
+
+
+def Dz_cuboid(dimensions: Tensor) -> Tensor:
+    """
+    Calculates the demagnetization factors for a batch of cuboids.
+    Assumes they have dimensions (a, b, 1) and have unit polarization in the z-direction.
+
+    Expression from: http://www.magpar.net/static/magpar/doc/html/demagcalc.html
+
+    Args:
+        dimensions (Tensor): Batch of cuboid dimensions shape (n, 3)
+
+    Returns:
+        Tensor: Demagnetizing factors for each cuboid
+    """
+
+    assert dimensions.shape[1] == 3
+    assert torch.allclose(
+        dimensions[..., 2], torch.ones(dimensions.shape[0], dtype=torch.double)
+    )
+
+    a, b = dimensions[..., 0], dimensions[..., 1]
+
+    norm = torch.sqrt(a * a + b * b + 1)
+    normab = torch.sqrt(a * a + b * b)
+    normac = torch.sqrt(a * a + 1)
+    normbc = torch.sqrt(b * b + 1)
+
+    return (1 / torch.pi) * (
+        (b**2 - 1) / (2 * b) * torch.log((norm - a) / (norm + a))
+        + (a**2 - 1) / (2 * a) * torch.log((norm - b) / (norm + b))
+        + b / (2) * torch.log((normab + a) / (normab - a))
+        + a / (2) * torch.log((normab + b) / (normab - b))
+        + 1 / (2 * a) * torch.log((normbc - b) / (normbc + b))
+        + 1 / (2 * b) * torch.log((normac - a) / (normac + a))
+        + 2 * torch.arctan((a * b) / (norm))
+        + (a**3 + b**3 - 2) / (3 * a * b)
+        + (a**2 + b**2 - 2) / (3 * a * b) * norm
+        + 1 / (a * b) * (torch.sqrt(a**2 + 1) + torch.sqrt(b**2 + 1))
+        - ((a**2 + b**2) ** (3 / 2) + (b**2 + 1) ** (3 / 2) + (1 + a**2) ** (3 / 2))
+        / (3 * a * b)
+    )

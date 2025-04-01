@@ -5,4 +5,4 @@ from nn_magnetics.models.networks import (
     AmpCorrectionNetwork,
     QuaternionNet,
 )
-from nn_magnetics.models.utils import get_num_params
+from nn_magnetics.models.utils import get_num_params, DivergenceLoss

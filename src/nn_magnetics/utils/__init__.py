@@ -1,5 +1,5 @@
 from nn_magnetics.utils.physics import (
-    demagnetizing_factor,
+    Nz_elementwise,
 )
 from nn_magnetics.utils.device import get_device
 from nn_magnetics.utils.metrics import (

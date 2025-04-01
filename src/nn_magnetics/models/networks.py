@@ -10,7 +10,13 @@ from torch import Tensor
 from torch.optim.lr_scheduler import LRScheduler
 from nn_magnetics.models.corrections import batch_rotation_matrices
 from nn_magnetics.models import Network
-from nn_magnetics.utils.physics import invert_quaternion, multiply_quaternions
+from nn_magnetics.utils.physics import (
+    invert_quaternion,
+    multiply_quaternions,
+    Bfield_homogeneous,
+    Dz_cuboid,
+    divB,
+)
 
 type Activation = Callable[[torch.Tensor], torch.Tensor]
 
@@ -46,6 +52,68 @@ class FieldCorrectionNetwork(Network):
 
     def correct_ansatz(self, B_reduced, prediction):
         return B_reduced * prediction
+
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
+        observers, dimensions, polarizations, susceptibilities = self._prepare_inputs(x)
+
+        B_analytical = Bfield_homogeneous(
+            observers=observers,
+            dimensions=dimensions,
+            polarizations=polarizations,
+        )
+
+        B_correction = self._forward(
+            observers=observers,
+            dimensions=dimensions,
+            susceptibilities=susceptibilities,
+        )
+
+        B = self.correct_ansatz(B_analytical, B_correction)
+
+        divergence_B = divB(B=B, observers=observers)
+
+        return B, divergence_B
+
+    def _forward(self, observers, dimensions, susceptibilities):
+        x = torch.concat(
+            (
+                dimensions[..., :2],  # a, b
+                susceptibilities,  # chi_x, chi_y, chi_z
+                observers / dimensions,  # x/a, y/b, z
+            ),
+            dim=1,
+        )
+
+        x = self.activation(self.linear1(x))
+        x = self.activation(self.linear2(x))
+        x = self.activation(self.linear3(x))
+        x = self.activation(self.linear4(x))
+        x = self.activation(self.linear5(x))
+        prediction = self.output(x)
+
+        return prediction
+
+    @staticmethod
+    def _prepare_inputs(x: Tensor) -> tuple[Tensor, ...]:
+        n_samples = x.shape[0]
+
+        # extract the spatial coordinates and make a new tensor with gradients
+        observers = x[:, 5:].clone().requires_grad_(True)
+
+        # make tensor containing dimensions of each magnet in the batch
+        dimensions = torch.concat((x[:, :2], torch.ones((n_samples, 1))), dim=1)
+
+        # calculate the reduced polarizations from the dimensions and χ_z
+        J_z = 1 / (1 + x[:, 4] * Dz_cuboid(dimensions)).unsqueeze(-1)
+        polarizations = torch.concat(
+            (torch.zeros((n_samples, 1)), torch.zeros((n_samples, 1)), J_z),
+            dim=1,
+        )
+
+        # make tensor containing the susceptibilities for each magnet
+        susceptibilities = x[:, 2:5].clone()
+
+        return observers, dimensions, polarizations, susceptibilities
 
     @classmethod
     def load_from_path(cls, path, hidden_dim_factor) -> FieldCorrectionNetwork:
@@ -177,7 +245,7 @@ class QuaternionNet(Network):
 
         self.apply(init_weights)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
         x = self.activation(self.linear1(x))
         x = self.activation(self.linear2(x))
         x = self.activation(self.linear3(x))
@@ -193,9 +261,9 @@ class QuaternionNet(Network):
         out = torch.cat((x_amp, x_angle), dim=1)
 
         if self.do_output_activation:
-            return self.activation(out)
+            return self.activation(out), torch.empty_like(out)
 
-        return out
+        return out, torch.empty_like(out)
 
     def correct_ansatz(self, B_reduced: Tensor, prediction: Tensor) -> Tensor:
         # separate amplitudes and rotations

@@ -116,11 +116,9 @@ def calculate_metrics_trained(
     model,
     return_abs: bool = True,
 ) -> Tuple[Tensor, Tensor]:
-    B_demag, B_reduced = B[..., :3], B[..., 3:]
+    B_demag, _ = B[..., :3], B[..., 3:]
 
-    with torch.no_grad():
-        predictions = model(X)
-        B_corrected = model.correct_ansatz(B_reduced, predictions)
+    B_corrected, _ = model(X)
 
     angle_errors = angle_error(B_demag, B_corrected)
     amp_errors = relative_amplitude_error(B_demag, B_corrected, return_abs)

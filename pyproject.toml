@@ -32,6 +32,7 @@ dependencies = [
     "pandas>=2.2.3",
     "torch-geometric>=2.6.1",
     "torch-sparse>=0.6.18",
+    "pytest>=8.3.5",
 ]
 
 [build-system]
@@ -49,3 +50,8 @@ dev = [
 
 [tool.ruff.lint]
 ignore=["F722"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+addopts = "-v"  # Verbose output
+
