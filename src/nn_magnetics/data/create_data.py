@@ -4,7 +4,7 @@ import numpy as np
 from magpylib_material_response.demag import apply_demag
 from magpylib_material_response.meshing import mesh_Cuboid
 
-from nn_magnetics.utils.physics import Nz_elementwise
+from nn_magnetics.utils.physics import Dz_cuboid_elementwise
 
 eps = 1e-6
 
@@ -92,7 +92,7 @@ def simulate_demag(
     grid_field = mesh.getB(grid)
 
     print("Calculating reduced field")
-    Nz = Nz_elementwise(a, b, 1)
+    Nz = Dz_cuboid_elementwise(a, b, 1)
     reduced_polarization = (0, 0, 1 / (1 + chi_z * Nz))
     magnet_reduced = magpy.magnet.Cuboid(
         polarization=reduced_polarization,
@@ -167,33 +167,3 @@ def display_points(filtered_points, a, b, c):
     ax.set_title("Non-Uniform 3x3x3 Grid with Cuboid Excluded")
     ax.legend()
     plt.show()
-
-
-if __name__ == "__main__":
-    from nn_magnetics.utils.metrics import relative_amplitude_error, angle_error
-    from nn_magnetics.data import AnisotropicData
-
-    X, B = AnisotropicData("data/3dof_chi_v2/validation_fast").get_magnets()
-    X, B = X.numpy(), B.numpy()
-    B_precomputed = B[0, :, 3:]
-    a, b = X[0, 0, 0], X[0, 0, 1]
-    chix, chiy, chiz = X[0, 0, 2], X[0, 0, 3], X[0, 0, 4]
-    grid_precomputed = X[0, :, 5:]
-
-    data = simulate_demag(a, b, chix, chiy, chiz, 26)
-    B_reduced = data["grid_field_reduced"]
-
-    grid_precomputed[..., 0] *= a
-    grid_precomputed[..., 1] *= b
-
-    Dz = Nz_elementwise(a, b, 1)
-
-    B_calc = magpy.magnet.Cuboid(
-        dimension=(a, b, 1),
-        polarization=(0, 0, 1 / (1 + Dz * chiz)),
-    ).getB(grid_precomputed)
-
-    angle_err = np.mean(angle_error(B_precomputed, B_calc))
-    amp_err = np.mean(relative_amplitude_error(B_precomputed, B_calc, True))
-
-    print(angle_err, amp_err)

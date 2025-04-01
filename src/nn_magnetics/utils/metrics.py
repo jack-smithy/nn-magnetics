@@ -1,10 +1,9 @@
 from typing import Tuple, overload
 
+import numpy as np
 import torch
 import torch.linalg as TLA
 from torch import Tensor
-import numpy as np
-from torch_geometric.data import Data
 
 
 @overload
@@ -119,23 +118,6 @@ def calculate_metrics_trained(
     B_demag, _ = B[..., :3], B[..., 3:]
 
     B_corrected, _ = model(X)
-
-    angle_errors = angle_error(B_demag, B_corrected)
-    amp_errors = relative_amplitude_error(B_demag, B_corrected, return_abs)
-
-    return angle_errors, amp_errors
-
-
-def calculate_metrics_trained_gnn(
-    data: Data,
-    model,
-    return_abs: bool = True,
-) -> Tuple[Tensor, Tensor]:
-    B_demag, B_reduced = data.y[..., :3], data.y[..., 3:]  # type: ignore
-
-    with torch.no_grad():
-        predictions = model(data.x, data.edge_index)
-        B_corrected = model.correct_ansatz(B_reduced, predictions)
 
     angle_errors = angle_error(B_demag, B_corrected)
     amp_errors = relative_amplitude_error(B_demag, B_corrected, return_abs)

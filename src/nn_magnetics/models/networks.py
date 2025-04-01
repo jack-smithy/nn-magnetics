@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from torch import nn
 from torch import Tensor
 from torch.optim.lr_scheduler import LRScheduler
-from nn_magnetics.models.corrections import batch_rotation_matrices
+from nn_magnetics.utils.physics import batch_rotation_matrices
 from nn_magnetics.models import Network
 from nn_magnetics.utils.physics import (
     invert_quaternion,

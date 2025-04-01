@@ -5,7 +5,7 @@ import numpy as np
 import torch
 
 from nn_magnetics.models.networks import Network
-from nn_magnetics.utils.physics import Nz_elementwise
+from nn_magnetics.utils.physics import Dz_cuboid_elementwise
 
 torch.set_default_dtype(torch.float64)
 
@@ -189,7 +189,7 @@ def eval_nn(
     dimension = dimension / dimension[2]
 
     # 3. calculate reduced polarization
-    P_reduced = 1 / (1 + susceptibility[2] * Nz_elementwise(*dimension))
+    P_reduced = 1 / (1 + susceptibility[2] * Dz_cuboid_elementwise(*dimension))
 
     # 4. calculate analytical B-field
     magnet = mp.magnet.Cuboid(dimension=dimension, polarization=(0, 0, P_reduced))

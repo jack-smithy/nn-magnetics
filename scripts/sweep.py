@@ -1,9 +1,9 @@
+import torch
 import torch.nn.functional as F
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import DataLoader
 
-import torch
 import wandb
 from nn_magnetics.data import AnisotropicData
 from nn_magnetics.models import FieldCorrectionNetwork
@@ -22,7 +22,7 @@ sweep_config = {
     },
 }
 
-sweep_id = wandb.sweep(sweep_config, project="3dof-chi-pinn")
+# sweep_id = wandb.sweep(sweep_config, project="3dof-chi-pinn")
 
 
 def main():
@@ -66,19 +66,19 @@ def main():
         valid_loader,
         loss,
         optimizer,
-        10,
+        30,
     )
 
     wandb.finish()
 
 
 if __name__ == "__main__":
-    # wandb.agent(
-    #     "kh16q5b4",
-    #     function=main,
-    #     count=100,
-    #     entity="jack-smithy-university-of-vienna",
-    #     project="3dof-chi-pinn",
-    # )
+    wandb.agent(
+        "f7am9n6s",
+        function=main,
+        count=100,
+        entity="jack-smithy-university-of-vienna",
+        project="3dof-chi-pinn",
+    )
 
-    wandb.agent(sweep_id=sweep_id, function=main)
+    # wandb.agent(sweep_id=sweep_id, function=main)

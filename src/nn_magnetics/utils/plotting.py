@@ -6,12 +6,10 @@ import numpy as np
 import torch
 from matplotlib import colors, patches
 
-from nn_magnetics.data.dataset import IsotropicData
 from nn_magnetics.utils.cmaps import CMAP_AMPLITUDE, CMAP_ANGLE
 from nn_magnetics.utils.metrics import (
     calculate_metrics_baseline,
     calculate_metrics_trained,
-    calculate_metrics_trained_gnn,
 )
 
 
@@ -72,112 +70,6 @@ def plot_loss(
 
     if save_path is not None:
         fig.savefig(f"{save_path}/learning_curves.png")
-    else:
-        plt.show()
-
-
-def plot_baseline_histograms(
-    path,
-    figsize=(10, 8),
-    bins=20,
-):
-    _, B = IsotropicData(path).get_magnets()
-
-    angle_errors, amplitude_errors = [], []
-
-    for Bi in B:
-        angle_error, amp_error = calculate_metrics_baseline(Bi)
-        angle_errors.append(torch.mean(angle_error))
-        amplitude_errors.append(torch.mean(amp_error))
-
-    fig, ax = plt.subplots(ncols=2, nrows=1, figsize=figsize)
-
-    mean_angle_baseline = np.mean(angle_errors)
-    mean_amp_baseline = np.mean(amplitude_errors)
-
-    ax[0].set_ylabel("Count (Baseline)")
-    ax[0].hist(
-        amplitude_errors,
-        bins=bins,
-        label=f"Avg Error: {round(mean_amp_baseline, 2)}%",
-    )
-    ax[0].legend()
-    ax[0].set_xlabel("Mean Relative Amplitude Error")
-
-    ax[1].hist(
-        angle_errors,
-        bins=bins,
-        label=f"Avg Error: {round(mean_angle_baseline, 2)}°",
-    )
-    ax[1].set_xlabel("Mean Angle Error")
-    ax[1].legend()
-
-    return fig, ax
-
-
-def plot_histograms_gnn(loader, model, save_path, figsize=(8, 8), bins=20, tag=""):
-    angle_errors_baseline, amplitude_errors_baseline = [], []
-
-    for graph in loader:
-        angle_error, amp_error = calculate_metrics_baseline(graph.y)
-        angle_errors_baseline.append(torch.mean(angle_error))
-        amplitude_errors_baseline.append(torch.mean(amp_error))
-
-    angle_errors, amplitude_errors = [], []
-
-    for graph in loader:
-        angle_error, amp_error = calculate_metrics_trained_gnn(graph, model)
-        angle_errors.append(torch.nan_to_num(torch.mean(angle_error), nan=180.0))
-        amplitude_errors.append(torch.mean(amp_error))
-
-    fig, ax = plt.subplots(
-        ncols=2,
-        nrows=2,
-        figsize=figsize,
-        sharex="col",
-        sharey="col",
-    )
-
-    mean_angle_baseline = round(float(np.mean(angle_errors_baseline)), 4)
-    mean_amp_baseline = round(float(np.mean(amplitude_errors_baseline)), 4)
-    mean_angle = round(float(np.mean(angle_errors)), 4)
-    mean_amp = round(float(np.mean(amplitude_errors)), 4)
-
-    ax[0, 0].set_ylabel("Count (Baseline)")
-    ax[0, 0].hist(
-        angle_errors_baseline,
-        bins=bins,
-        label=f"Avg Error: {mean_angle_baseline}°",
-    )
-    ax[0, 0].set_ylabel("Count (Baseline)")
-    ax[0, 0].legend()
-
-    ax[0, 1].hist(
-        amplitude_errors_baseline,
-        bins=bins,
-        label=f"Avg Error: {mean_amp_baseline}%",
-    )
-    ax[0, 1].legend()
-
-    ax[1, 0].hist(
-        angle_errors,
-        bins=bins,
-        label=f"Avg Error: {mean_angle}°",
-    )
-    ax[1, 0].set_xlabel("Mean Angle Error (°)")
-    ax[1, 0].set_ylabel("Count (NN Correction)")
-    ax[1, 0].legend()
-
-    ax[1, 1].hist(
-        amplitude_errors,
-        bins=bins,
-        label=f"Avg Error: {mean_amp}%",
-    )
-    ax[1, 1].set_xlabel("Mean Relative Amplitude Error (%)")
-    ax[1, 1].legend()
-
-    if save_path is not None:
-        fig.savefig(f"{save_path}/histograms{tag}.png")
     else:
         plt.show()
 
@@ -631,19 +523,6 @@ def plot_heatmaps(
         fig2.savefig(f"{save_path}/angle_heatmap_{tag}.png")
     else:
         plt.show()
-
-
-def one_magnet_errors(X, B, model, save_path):
-    grid = X[:, 5:]  # replace with 4 for anisotropic
-    a = float(X[0, 0])
-    b = float(X[0, 1])
-
-    amp_err, angle_err = calculate_metrics_trained(X, B, model, True)
-
-    fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(10, 5))
-
-    angle_mean = round(float(np.mean(angle_err, where=~np.isnan(angle_err))), 3)
-    angle_std = round(float(np.mean(angle_err, where=~np.isnan(angle_err))), 2)
 
 
 def quiverplot(grid, B_hom, B_demag):
