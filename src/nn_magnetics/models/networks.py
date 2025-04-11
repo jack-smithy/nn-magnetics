@@ -3,19 +3,20 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
+import phys_torch
 import torch
 import torch.nn.functional as F
-from torch import nn
-from torch import Tensor
+from torch import Tensor, nn
 from torch.optim.lr_scheduler import LRScheduler
-from nn_magnetics.utils.physics import batch_rotation_matrices
+
 from nn_magnetics.models import Network
 from nn_magnetics.utils.physics import (
-    invert_quaternion,
-    multiply_quaternions,
     Bfield_homogeneous,
     Dz_cuboid,
+    batch_rotation_matrices,
     divB,
+    invert_quaternion,
+    multiply_quaternions,
 )
 
 type Activation = Callable[[torch.Tensor], torch.Tensor]
@@ -54,23 +55,25 @@ class FieldCorrectionNetwork(Network):
     def forward(self, x: Tensor) -> tuple[Tensor, Tensor]:
         observers, dimensions, polarizations, susceptibilities = self._prepare_inputs(x)
 
-        B_analytical = Bfield_homogeneous(
-            observers=observers,
-            dimensions=dimensions,
-            polarizations=polarizations,
-        )
+        def wrapper(observers: Tensor) -> Tensor:
+            B_analytical = Bfield_homogeneous(
+                observers=observers,
+                dimensions=dimensions,
+                polarizations=polarizations,
+            )
 
-        B_correction = self._forward(
-            observers=observers,
-            dimensions=dimensions,
-            susceptibilities=susceptibilities,
-        )
+            B_correction = self._forward(
+                observers=observers,
+                dimensions=dimensions,
+                susceptibilities=susceptibilities,
+            )
 
-        B = self.correct_ansatz(B_analytical, B_correction)
+            return self.correct_ansatz(B_analytical, B_correction)
 
-        divergence_B = divB(B=B, observers=observers)
+        B = wrapper(observers)
+        divB = phys_torch.div(wrapper)(observers)
 
-        return B, divergence_B
+        return B, divB
 
     def _forward(self, observers, dimensions, susceptibilities):
         x = torch.concat(

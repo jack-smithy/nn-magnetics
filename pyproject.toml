@@ -33,6 +33,7 @@ dependencies = [
     "torch-geometric>=2.6.1",
     "torch-sparse>=0.6.18",
     "pytest>=8.3.5",
+    "phys-torch>=0.1.0",
 ]
 
 [build-system]
