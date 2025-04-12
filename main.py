@@ -22,7 +22,7 @@ from nn_magnetics.models import (
 from nn_magnetics.utils.plotting import (
     plot_heatmaps,
     plot_histograms,
-    plot_loss,
+    plot_training,
 )
 
 DEVICE = "cpu"
@@ -105,7 +105,7 @@ def main():
         do_output_activation=True,
     ).to(torch.float64)
 
-    plot_loss(
+    plot_training(
         train_losses,
         valid_losses,
         angle_errs,

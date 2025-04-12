@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from matplotlib import colors, patches
 
+import scienceplots
 from nn_magnetics.data.dataset import IsotropicData
 from nn_magnetics.utils.cmaps import CMAP_AMPLITUDE, CMAP_ANGLE
 from nn_magnetics.utils.metrics import (
@@ -14,25 +15,53 @@ from nn_magnetics.utils.metrics import (
     calculate_metrics_trained_gnn,
 )
 
+plt.style.use(["science"])
 
-def plot_loss(
+
+def plot_loss(train_loss, validation_loss, save_path, tag=None):
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(4, 3), sharex=True)
+
+    n_epochs = len(train_loss)
+
+    ax.set_xlim((0, n_epochs - 1))
+    ax.plot(train_loss, label="Train")
+    ax.plot(validation_loss, label="Test")
+    ax.legend()
+    ax.set_ylabel("Loss")
+    ax.set_xlabel("Epochs")
+
+    plt.tight_layout()
+
+    if save_path is not None:
+        if tag is not None:
+            if tag[0] != "_":
+                tag = f"_{tag}"
+
+        fig.savefig(f"{save_path}/learning_curves{tag}.png")
+    else:
+        plt.show()
+
+
+def plot_training(
     train_loss: list,
     validation_loss: list,
     angle_error: list,
     amplitude_error: list,
-    n_epochs: int,
     save_path: Path | None,
     baselines: tuple | None = None,  # (loss, angle, amp)
     log_scale: bool = False,
+    tag: str | None = None,
 ):
     ax: list[Axes]
-    fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(12, 4), sharex=True)
+    fig, ax = plt.subplots(nrows=3, ncols=1, figsize=(1, 1), sharex=True)
 
     for a in ax:
         a.set_xlabel("Epochs")
 
         if log_scale:
             a.set_yscale("log")
+
+    n_epochs = len(train_loss)
 
     ax[0].set_xlim((0, n_epochs - 1))
     ax[0].plot(train_loss, label="Train")
@@ -57,7 +86,11 @@ def plot_loss(
     plt.tight_layout()
 
     if save_path is not None:
-        fig.savefig(f"{save_path}/learning_curves.png")
+        if tag is not None:
+            if tag[0] != "_":
+                tag = f"_{tag}"
+
+        fig.savefig(f"{save_path}/learning_curves{tag}.png")
     else:
         plt.show()
 

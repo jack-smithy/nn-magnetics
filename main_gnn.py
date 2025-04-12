@@ -16,7 +16,7 @@ from nn_magnetics.models import QuaternionNet, AngleAmpCorrectionNetwork, GNN
 from nn_magnetics.utils.plotting import (
     plot_heatmaps,
     plot_histograms,
-    plot_loss,
+    plot_training,
     plot_histograms_gnn,
 )
 
@@ -85,7 +85,7 @@ def main():
         wandb.config.epochs,
     )
 
-    plot_loss(
+    plot_training(
         train_losses,
         valid_losses,
         angle_errs,

@@ -48,10 +48,20 @@ class FieldCorrectionNetwork(Network):
         return B_reduced * prediction
 
     @classmethod
-    def load_from_path(cls, path, hidden_dim_factor) -> FieldCorrectionNetwork:
+    def load_from_path(
+        cls,
+        path,
+        *,
+        hidden_dim_factor,
+        do_output_activation,
+        activation,
+    ) -> FieldCorrectionNetwork:
         model = FieldCorrectionNetwork(
             in_features=8,
             hidden_dim_factor=hidden_dim_factor,
+            do_output_activation=do_output_activation,
+            activation=activation,
+            save_weights=False,
         )
         model.load_state_dict(torch.load(path, weights_only=True))
         return model

@@ -11,7 +11,7 @@ from torch_geometric.nn import BatchNorm, GATConv, GCNConv, GraphNorm, Sequentia
 
 from nn_magnetics.data import simulate_demag
 from nn_magnetics.utils.metrics import angle_error, relative_amplitude_error
-from nn_magnetics.utils.plotting import plot_loss
+from nn_magnetics.utils.plotting import plot_training
 
 
 class GCN(torch.nn.Module):
@@ -219,7 +219,7 @@ def main():
     print(true_corrections[:5])
     print(correction[:5])
 
-    plot_loss(
+    plot_training(
         [h["train_loss"] for h in history],
         [h["test_loss"] for h in history],
         [h["angle_error"] for h in history],
