@@ -121,11 +121,3 @@ def multiply_quaternions(q1: Tensor, q2: Tensor) -> Tensor:
             d3.unsqueeze(0),
         ]
     ).T
-
-
-if __name__ == "__main__":
-    q1 = 10 * torch.rand((10, 4), dtype=torch.float64)
-    print(q1)
-    q1_inv = invert_quaternion(q1)
-    q3 = multiply_quaternions(q1, q1_inv)
-    print(q3)
