@@ -15,21 +15,30 @@ from nn_magnetics.utils.plotting import (
     plot_histograms,
     plot_loss,
     plot_training,
+    plot_baseline_histograms,
 )
+from nn_magnetics.utils.metrics import (
+    calculate_metrics_baseline,
+    calculate_metrics_trained,
+    vector_field_correlation,
+)
+import matplotlib.pyplot as plt
 
 DEVICE = "cpu"
-SAVE_PATH = Path("results/paper/quaternion")
+SAVE_PATH = Path(
+    "/Users/jacksmith/Documents/work/nn-magnetics/results/3dof_chi_v2/2025-04-25 10:27:16.283326"
+)
 
 
 def main():
     # with open(f"{SAVE_PATH}/config.json") as f:
     #     config = json.load(f)
 
-    model = QuaternionNet.load_from_path(
+    model = AngleAmpCorrectionNetwork.load_from_path(
         SAVE_PATH / "best_weights.pt",
-        hidden_dim_factor=6,
         activation=F.silu,
-        do_output_activation=True,
+        save_path=None,
+        save_weights=False,
     ).to(torch.float64)
 
     # train_losses = []
@@ -75,22 +84,36 @@ def main():
     #     save_path=f"{SAVE_PATH}/pdfs",
     # )
 
-    # X, B = AnisotropicData("data/3dof_chi/validation").get_magnets()
-    # plot_histograms(
-    #     X=X,
-    #     B=B,
-    #     model=model,
-    #     save_path=f"{SAVE_PATH}",
-    #     figsize=(6, 4),
-    #     tag="_no_baseline",
-    # )
+    X, B = AnisotropicData("data/3dof_chi/validation_medium").get_magnets()
 
-    X_mag, B_mag = AnisotropicData(
-        "data/3dof_chi/one",
-        device=DEVICE,
-    ).get_magnets()
+    angle_errs = []
+    amp_errs = []
+    angle_errs_baseline = []
+    amp_errs_baseline = []
+    for x, b in zip(X, B):
+        angle_err_baseline, amp_err_baseline = calculate_metrics_baseline(b)
+        angle_err, amp_err = calculate_metrics_trained(x, b, model)
 
-    print(X_mag[0, 0, :])
+        angle_errs.append(angle_err.mean())
+        amp_errs.append(amp_err.mean())
+        angle_errs_baseline.append(angle_err_baseline.mean())
+        amp_errs_baseline.append(amp_err_baseline.mean())
+
+    angle_errs_t = torch.stack(angle_errs)
+    amp_errs_t = torch.stack(amp_errs)
+    angle_errs_b_t = torch.stack(angle_errs_baseline)
+    amp_errs_b_t = torch.stack(amp_errs_baseline)
+
+    print(angle_errs_t.mean().item())
+    print(amp_errs_t.mean().item())
+
+    print(angle_errs_b_t.mean().item())
+    print(amp_errs_b_t.mean().item())
+
+    # X_mag, B_mag = AnisotropicData(
+    #     "data/3dof_chi/one",
+    #     device=DEVICE,
+    # ).get_magnets()
 
     # plot_heatmaps(model, X_mag[0], B_mag[0], f"{SAVE_PATH}/pdfs", tag="_no_baseline")
 

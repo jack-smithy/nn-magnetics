@@ -115,7 +115,7 @@ def plot_training(
     tag: str | None = None,
 ):
     ax: list[Axes]
-    fig, ax = plt.subplots(nrows=3, ncols=1, figsize=(1, 1), sharex=True)
+    fig, ax = plt.subplots(nrows=3, ncols=1, figsize=(6, 6), sharex=True)
 
     for a in ax:
         a.set_xlabel("Epochs")
@@ -157,13 +157,7 @@ def plot_training(
         plt.show()
 
 
-def plot_baseline_histograms(
-    path,
-    figsize=(10, 8),
-    bins=20,
-):
-    _, B = IsotropicData(path).get_magnets()
-
+def plot_baseline_histograms(B, figsize=(10, 8), bins=20):
     angle_errors, amplitude_errors = [], []
 
     for Bi in B:
@@ -321,7 +315,7 @@ def plot_histograms(X, B, model, save_path, figsize=(8, 8), tag=""):
     # # ax[0][1].legend()
 
     count, bins, _ = ax[0].hist(
-        angle_errors_baseline,
+        angle_errors,
         # bins=get_bins(angle_errors),
         bins=30,
         label=f"Avg Error: {mean_angle}°",
@@ -335,7 +329,7 @@ def plot_histograms(X, B, model, save_path, figsize=(8, 8), tag=""):
     ax[0].set_ylabel("Frequency")
 
     count, bins, _ = ax[1].hist(
-        amplitude_errors_baseline,
+        amplitude_errors,
         # bins=get_bins(amplitude_errors),
         bins=30,
         label=f"Avg Error: {mean_amp}%",

@@ -4,7 +4,7 @@ import magpylib as mp
 import numpy as np
 import torch
 
-from nn_magnetics.models.networks import Network
+from nn_magnetics.models.networks import BaseNetwork
 from nn_magnetics.utils.physics import demagnetizing_factor
 
 torch.set_default_dtype(torch.float64)
@@ -66,7 +66,7 @@ def B(
     points: np.ndarray,
     model_path: str,
     hidden_dim_factor: int,
-    network_type: Type[Network],
+    network_type: Type[BaseNetwork],
 ) -> np.ndarray:
     """_summary_
 
@@ -159,7 +159,7 @@ def eval_nn(
     polarization: float,
     susceptibility: np.ndarray,
     points: np.ndarray,
-    model: Network,
+    model: BaseNetwork,
 ) -> np.ndarray:
     """
     calculate corrected B-field for polarization=(0, 0, p) at any point outside magnet in (+, +, +) quadrant.

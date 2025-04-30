@@ -26,21 +26,24 @@ from nn_magnetics.utils.plotting import (
 )
 
 DEVICE = "cpu"
-SAVE_PATH = Path(f"results/paper/{str(datetime.datetime.now())}")
+SAVE_PATH = Path(f"results/3dof_chi_v2/{str(datetime.datetime.now())}")
 
 config = {
-    "model": "Quaternion",
-    "epochs": 45,
-    "batch_size": 1000,
-    "learning_rate": 0.0008,
-    "hidden_dim_factor": 6,
-    "gamma": 0.95,
-    "activation": "tanh",
+    "model": "AngleAmp",
+    "epochs": 40,
+    "batch_size": 256,
+    "learning_rate": 0.009,
+    "gamma": 0.98,
+    "activation": "silu",
+    "loss": "mse",
 }
+
+activations = {"tanh": F.tanh, "silu": F.silu}
+losses = {"l1": F.l1_loss, "mse": F.mse_loss}
 
 
 def main():
-    wandb.init(project="paper", config=config)
+    wandb.init(project="3dof_chi_v2", config=config)
 
     assert wandb.run is not None
     os.makedirs(SAVE_PATH, exist_ok=True)
@@ -48,8 +51,8 @@ def main():
     with open(f"{SAVE_PATH}/config.json", "w+") as f:
         json.dump(config, f)
 
-    train_data = AnisotropicData("data/3dof_chi/train", device=DEVICE)
-    valid_data = AnisotropicData("data/3dof_chi/validation", device=DEVICE)
+    train_data = AnisotropicData("data/3dof_chi_v2/train", device=DEVICE)
+    valid_data = AnisotropicData("data/3dof_chi_v2/validation", device=DEVICE)
 
     train_loader = DataLoader(
         train_data,
@@ -62,16 +65,12 @@ def main():
         shuffle=True,
     )
 
-    model = QuaternionNet(
-        in_features=8,
-        hidden_dim_factor=wandb.config.hidden_dim_factor,
+    model = AngleAmpCorrectionNetwork(
         save_path=SAVE_PATH,
-        activation=F.tanh,
+        activation=activations[wandb.config.activation],
         save_weights=True,
-        do_output_activation=True,
     ).to(torch.float64)
 
-    loss = nn.L1Loss()
     optimizer = Adam(params=model.parameters(), lr=wandb.config.learning_rate)
 
     model.lr_scheduler = ExponentialLR(optimizer=optimizer, gamma=wandb.config.gamma)
@@ -79,7 +78,7 @@ def main():
     train_losses, valid_losses, angle_errs, amp_errs = model.fit(
         train_loader,
         valid_loader,
-        loss,
+        losses[wandb.config.loss],
         optimizer,
         wandb.config.epochs,
     )
@@ -94,25 +93,7 @@ def main():
     with open(f"{SAVE_PATH}/learning.json", "w+") as f:
         json.dump(learning, f)
 
-    del model
-
-    model = QuaternionNet.load_from_path(
-        SAVE_PATH / "best_weights.pt",
-        6,
-        activation=F.silu,
-        save_path=None,
-        save_weights=False,
-        do_output_activation=True,
-    ).to(torch.float64)
-
-    plot_training(
-        train_losses,
-        valid_losses,
-        angle_errs,
-        amp_errs,
-        wandb.config.epochs,
-        save_path=SAVE_PATH,
-    )
+    plot_training(train_losses, valid_losses, angle_errs, amp_errs, save_path=SAVE_PATH)
 
     X, B = valid_data.get_magnets()
 

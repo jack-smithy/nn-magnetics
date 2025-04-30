@@ -32,6 +32,7 @@ dependencies = [
     "torch-geometric>=2.6.1",
     "torch-sparse>=0.6.18",
     "scienceplots>=2.1.1",
+    "bayesian-optimization>=2.0.3",
 ]
 
 [build-system]

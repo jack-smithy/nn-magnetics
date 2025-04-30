@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 import torch
 import wandb
 from nn_magnetics.data import AnisotropicData
-from nn_magnetics.models import QuaternionNet
+from nn_magnetics.models import AngleAmpCorrectionNetwork
 
 DEVICE = "cpu"
 
@@ -15,14 +15,16 @@ sweep_config = {
     "metric": {"name": "validation_loss", "goal": "minimize"},
     "parameters": {
         "learning_rate": {"min": 0.0001, "max": 0.1},
-        "batch_size": {"min": 64, "max": 2048},
+        "batch_size": {"value": 256, "distribution": "constant"},
         "gamma": {"min": 0.9, "max": 1.0},
-        "loss": {"values": ["mse", "l1"]},
-        "activation": {"values": ["silu", "tanh"]},
+        "loss": {"value": "l1", "distribution": "constant"},
+        "activation": {"value": "silu", "distribution": "constant"},
+        "epochs": {"value": 15, "distribution": "constant"},
+        "lr_scheduler": {"value": "cosine"},
     },
 }
 
-sweep_id = wandb.sweep(sweep_config, project="3dof-chi-quaternions")
+# sweep_id = wandb.sweep(sweep_config, project="3dof_chi_v2")
 activations = {"silu": F.silu, "tanh": F.tanh}
 losses = {"l1": F.l1_loss, "mse": F.mse_loss}
 
@@ -32,29 +34,25 @@ def train():
 
     assert wandb.run is not None
 
-    train_data = AnisotropicData("data/3dof_chi/train_fast", device=DEVICE)
-    valid_data = AnisotropicData("data/3dof_chi/validation_fast", device=DEVICE)
+    train_data = AnisotropicData("data/3dof_chi_v2/train", device=DEVICE)
+    valid_data = AnisotropicData("data/3dof_chi_v2/validation", device=DEVICE)
 
     train_loader = DataLoader(
         train_data,
-        batch_size=wandb.config.batch_size,
+        batch_size=int(wandb.config.batch_size),
         shuffle=True,
     )
     valid_loader = DataLoader(
         valid_data,
-        batch_size=wandb.config.batch_size,
+        batch_size=int(wandb.config.batch_size),
         shuffle=False,
     )
 
-    model = QuaternionNet(
-        in_features=8,
-        hidden_dim_factor=6,
+    model = AngleAmpCorrectionNetwork(
         activation=activations[wandb.config.activation],
         save_weights=False,
-        do_output_activation=False,
+        save_path=None,
     ).to(torch.float64)
-
-    loss = losses[wandb.config.loss]
 
     optimizer = Adam(
         params=model.parameters(),
@@ -64,23 +62,23 @@ def train():
     model.lr_scheduler = ExponentialLR(optimizer=optimizer, gamma=wandb.config.gamma)
 
     _ = model.fit(
-        train_loader,
-        valid_loader,
-        loss,
-        optimizer,
-        15,
+        train_loader=train_loader,
+        valid_loader=valid_loader,
+        criterion=losses[wandb.config.loss],
+        optimizer=Adam(params=model.parameters(), lr=wandb.config.learning_rate),
+        epochs=wandb.config.epochs,
     )
 
     wandb.finish()
 
 
 if __name__ == "__main__":
-    # wandb.agent(
-    #     "zgwihfd6",
-    #     function=train,
-    #     count=100,
-    #     entity="jack-smithy-university-of-vienna",
-    #     project="3dof-chi-quaternions",
-    # )
+    wandb.agent(
+        "n3earp9a",
+        function=train,
+        count=100,
+        entity="jack-smithy-university-of-vienna",
+        project="3dof_chi_v2",
+    )
 
-    wandb.agent(sweep_id=sweep_id, function=train)
+    # wandb.agent(sweep_id=sweep_id, function=train)

@@ -9,7 +9,7 @@ from torch import nn
 from torch import Tensor
 from torch.optim.lr_scheduler import LRScheduler
 from nn_magnetics.models.corrections import batch_rotation_matrices
-from nn_magnetics.models import Network
+from nn_magnetics.models import BaseNetwork
 from nn_magnetics.utils.physics import invert_quaternion, multiply_quaternions
 
 type Activation = Callable[[torch.Tensor], torch.Tensor]
@@ -22,29 +22,25 @@ def init_weights(m):
             nn.init.zeros_(m.bias)
 
 
-class FieldCorrectionNetwork(Network):
+class FieldCorrectionNetwork(BaseNetwork):
     def __init__(
         self,
-        in_features: int,
-        hidden_dim_factor: int,
         save_path: Path | None = None,
+        save_weights: bool = True,
         lr_scheduler: LRScheduler | None = None,
         activation: Callable[[Tensor], Tensor] = F.silu,
-        do_output_activation=True,
-        save_weights: bool = True,
     ) -> None:
         super().__init__(
-            in_features,
-            hidden_dim_factor,
-            3,
-            save_path,
-            lr_scheduler,
-            activation,
-            do_output_activation,
+            in_features=8,
+            out_features=4,
+            save_path=save_path,
             save_weights=save_weights,
+            lr_scheduler=lr_scheduler,
+            activation=activation,
         )
 
-    def correct_ansatz(self, B_reduced, prediction):
+    @staticmethod
+    def correct_ansatz(B_reduced, prediction):
         return B_reduced * prediction
 
     @classmethod
@@ -52,45 +48,39 @@ class FieldCorrectionNetwork(Network):
         cls,
         path,
         *,
-        hidden_dim_factor,
-        do_output_activation,
         activation,
+        save_weights,
+        save_path,
     ) -> FieldCorrectionNetwork:
         model = FieldCorrectionNetwork(
-            in_features=8,
-            hidden_dim_factor=hidden_dim_factor,
-            do_output_activation=do_output_activation,
+            save_path=save_path,
+            save_weights=save_weights,
             activation=activation,
-            save_weights=False,
         )
         model.load_state_dict(torch.load(path, weights_only=True))
         return model
 
 
-class AngleAmpCorrectionNetwork(Network):
+class AngleAmpCorrectionNetwork(BaseNetwork):
     def __init__(
         self,
-        in_features: int,
-        hidden_dim_factor: int,
         save_path: Path | None = None,
         lr_scheduler: LRScheduler | None = None,
         activation: Callable[[Tensor], Tensor] = F.silu,
-        do_output_activation=True,
         save_weights: bool = True,
     ) -> None:
         super().__init__(
-            in_features,
-            hidden_dim_factor,
-            4,
-            save_path,
-            lr_scheduler,
-            activation,
-            do_output_activation,
+            in_features=8,
+            out_features=4,
+            save_path=save_path,
+            lr_scheduler=lr_scheduler,
+            activation=activation,
             save_weights=save_weights,
         )
 
-    def correct_ansatz(self, B_reduced: Tensor, prediction: Tensor) -> Tensor:
-        assert prediction.shape[1] == 4
+    @staticmethod
+    def correct_ansatz(B_reduced: Tensor, prediction: Tensor) -> Tensor:
+        assert prediction.shape[1] == 4, f"Prediction shape is {prediction.shape}"
 
         angles = prediction[..., :3]
         amplitudes = prediction[..., 3]
@@ -104,22 +94,21 @@ class AngleAmpCorrectionNetwork(Network):
     def load_from_path(
         cls,
         path,
-        hidden_dim_factor: int,
-        save_path: Path | None = None,
-        lr_scheduler: LRScheduler | None = None,
-        activation: Callable[[Tensor], Tensor] = F.silu,
-        do_output_activation=True,
-        save_weights: bool = True,
+        *,
+        activation,
+        save_weights,
+        save_path,
     ) -> AngleAmpCorrectionNetwork:
         model = AngleAmpCorrectionNetwork(
-            in_features=8,
-            hidden_dim_factor=hidden_dim_factor,
+            activation=activation,
+            save_weights=save_weights,
+            save_path=save_path,
         )
         model.load_state_dict(torch.load(path, weights_only=True))
         return model
 
 
-class AmpCorrectionNetwork(Network):
+class QuaternionNet(BaseNetwork):
     def __init__(
         self,
         in_features: int,
@@ -127,46 +116,14 @@ class AmpCorrectionNetwork(Network):
         save_path: Path | None = None,
         lr_scheduler: LRScheduler | None = None,
         activation: Callable[[Tensor], Tensor] = F.silu,
-        do_output_activation=True,
         save_weights: bool = True,
     ) -> None:
         super().__init__(
-            in_features,
-            hidden_dim_factor,
-            1,
-            save_path,
-            lr_scheduler,
-            activation,
-            do_output_activation,
-            save_weights=save_weights,
-        )
-
-    def correct_ansatz(self, B_reduced: Tensor, prediction: Tensor) -> Tensor:
-        B_reduced = B_reduced.type(torch.float64)
-
-        # Multiply each vector in B_reduced by the corresponding rotation matrix in Rs
-        return prediction * B_reduced
-
-
-class QuaternionNet(Network):
-    def __init__(
-        self,
-        in_features: int,
-        hidden_dim_factor: int,
-        save_path: Path | None = None,
-        lr_scheduler: LRScheduler | None = None,
-        activation: Callable[[Tensor], Tensor] = F.silu,
-        do_output_activation=True,
-        save_weights: bool = True,
-    ) -> None:
-        super().__init__(
-            in_features,
-            hidden_dim_factor,
-            4,
-            save_path,
-            lr_scheduler,
-            activation,
-            do_output_activation,
+            in_features=8,
+            out_features=5,
+            save_path=save_path,
+            lr_scheduler=lr_scheduler,
+            activation=activation,
             save_weights=save_weights,
         )
 
@@ -207,7 +164,8 @@ class QuaternionNet(Network):
 
         return out
 
-    def correct_ansatz(self, B_reduced: Tensor, prediction: Tensor) -> Tensor:
+    @staticmethod
+    def correct_ansatz(B_reduced: Tensor, prediction: Tensor) -> Tensor:
         # separate amplitudes and rotations
         amplitudes, rotations = prediction[..., 0], prediction[..., 1:]
 
@@ -224,25 +182,22 @@ class QuaternionNet(Network):
         # correct amplitude
         return amplitudes[:, None] * pprime[..., 1:]
 
-    @classmethod
-    def load_from_path(
-        cls,
-        path,
-        hidden_dim_factor: int,
-        save_path: Path | None = None,
-        lr_scheduler: LRScheduler | None = None,
-        activation: Callable[[Tensor], Tensor] = F.silu,
-        do_output_activation=True,
-        save_weights: bool = True,
-    ) -> QuaternionNet:
-        model = QuaternionNet(
-            in_features=8,
-            hidden_dim_factor=hidden_dim_factor,
-            save_path=save_path,
-            lr_scheduler=lr_scheduler,
-            activation=activation,
-            do_output_activation=do_output_activation,
-            save_weights=save_weights,
-        )
-        model.load_state_dict(torch.load(path, weights_only=True))
-        return model
+    # @classmethod
+    # def load_from_path(
+    #     cls,
+    #     path,
+    #     *,
+    #     hidden_dim_factor,
+    #     do_output_activation,
+    #     activation,
+    #     save_weights=False,
+    # ) -> QuaternionNet:
+    #     model = QuaternionNet(
+    #         in_features=8,
+    #         hidden_dim_factor=hidden_dim_factor,
+    #         activation=activation,
+    #         do_output_activation=do_output_activation,
+    #         save_weights=save_weights,
+    #     )
+    #     model.load_state_dict(torch.load(path, weights_only=True))
+    #     return model
