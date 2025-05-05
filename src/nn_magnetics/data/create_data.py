@@ -6,6 +6,7 @@ from magpylib_material_response.meshing import mesh_Cuboid
 from nn_magnetics.utils.physics import demagnetizing_factor
 import matplotlib.pyplot as plt
 from nn_magnetics.graph.create_graphs import compute_edge_index_fast
+from scipy.stats.qmc import Sobol
 
 eps = 1e-6
 

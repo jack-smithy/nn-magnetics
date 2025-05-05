@@ -19,6 +19,28 @@ from nn_magnetics.utils.physics import Dz_cuboid, Bfield_homogeneous
 type Activation = Callable[[torch.Tensor], torch.Tensor]
 
 
+class FeedForward(nn.Module):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        activation: Activation,
+        p: float,
+    ):
+        super().__init__()
+        self.linear = nn.Linear(in_features=in_features, out_features=out_features)
+        self.activation = activation
+        self.dropout = nn.Dropout(p=p)
+        self.layernorm = nn.LayerNorm(out_features)
+
+    def forward(self, x: Tensor) -> Tensor:
+        x = self.linear(x)
+        x = self.layernorm(x)
+        x = self.activation(x)
+        x = self.dropout(x)
+        return x
+
+
 class BaseNetwork(nn.Module):
     def __init__(
         self,
@@ -27,57 +49,26 @@ class BaseNetwork(nn.Module):
         save_path: Path | None = None,
         lr_scheduler: LRScheduler | None = None,
         activation: Activation = F.silu,
+        p: float = 0.2,
         save_weights: bool = True,
     ) -> None:
         super().__init__()
 
-        self.linear1 = nn.Linear(
-            in_features=in_features,
-            out_features=128,
+        self.layers = nn.Sequential(
+            FeedForward(in_features, 128, activation, p),
+            FeedForward(128, 48, activation, p),
+            FeedForward(48, 48, activation, p),
+            FeedForward(48, 48, activation, p),
+            FeedForward(48, 48, activation, p),
+            FeedForward(48, 48, activation, p),
+            FeedForward(48, 128, activation, p),
+            nn.Linear(128, out_features),
         )
-        self.linear2 = nn.Linear(
-            in_features=128,
-            out_features=48,
-        )
-        self.linear3 = nn.Linear(
-            in_features=48,
-            out_features=48,
-        )
-        self.linear4 = nn.Linear(
-            in_features=48,
-            out_features=48,
-        )
-        self.linear5 = nn.Linear(
-            in_features=48,
-            out_features=48,
-        )
-        self.linear6 = nn.Linear(
-            in_features=48,
-            out_features=48,
-        )
-        self.linear7 = nn.Linear(
-            in_features=48,
-            out_features=128,
-        )
-        self.output = nn.Linear(
-            in_features=128,
-            out_features=out_features,
-        )
-        self.activation = activation
+
         self.best_weights = deepcopy(self).state_dict()
         self.save_path = save_path
         self.lr_scheduler = lr_scheduler
         self.save_weights = save_weights
-
-    def _forward(self, x: Tensor) -> Tensor:
-        feature = self.activation(self.linear1(x))
-        feature = self.activation(self.linear2(feature))
-        feature = self.activation(self.linear3(feature))
-        feature = self.activation(self.linear4(feature))
-        feature = self.activation(self.linear5(feature))
-        feature = self.activation(self.linear6(feature))
-        feature = self.activation(self.linear7(feature))
-        return self.output(feature)
 
     def forward(self, x: Tensor) -> Tensor:
         observers, dimensions, polarizations, susceptibilities = self._prepare_inputs(x)
@@ -95,14 +86,16 @@ class BaseNetwork(nn.Module):
             susceptibilities=susceptibilities,
         )
 
-        prediction = self._forward(feature)
+        prediction = self.layers(feature)
 
         return self.correct_ansatz(B_reduced=B_reduced, prediction=prediction)
 
-    def _train_step(self, train_loader, criterion, optimizer):
+    def _train_step(self, train_loader: tuple[Tensor, Tensor], criterion, optimizer):
         self.train()
 
         history = []
+        angle_errors = []
+        amplitude_errors = []
         for X, B in train_loader:
             # get the prediction (forward pass)
             B_demag = B[..., :3]
@@ -117,7 +110,15 @@ class BaseNetwork(nn.Module):
             loss.backward()
             optimizer.step()
 
-        return np.mean(history)
+            angle_err, amp_err = self._calculate_metrics(
+                B_demag.detach(),
+                B_corrected.detach(),
+            )
+
+            angle_errors.append(angle_err)
+            amplitude_errors.append(amp_err)
+
+        return np.mean(history), np.mean(angle_errors), np.mean(amplitude_errors)
 
     def _valid_step(self, valid_loader, criterion):
         self.eval()
@@ -142,20 +143,33 @@ class BaseNetwork(nn.Module):
 
             return np.mean(history), np.mean(angle_errors), np.mean(amplitude_errors)
 
-    def fit(self, train_loader, valid_loader, criterion, optimizer, epochs):
+    def fit(
+        self,
+        train_loader,
+        valid_loader,
+        criterion,
+        optimizer,
+        epochs,
+    ):
         train_losses = []
         validation_losses = []
-        angle_errors = []
-        amp_errors = []
+        train_angle_errors = []
+        train_amp_errors = []
+        validation_angle_errors = []
+        validation_amp_errors = []
 
         self.best_loss = np.inf
         for _ in tqdm.tqdm(range(epochs), unit="epochs"):
-            train_loss = self._train_step(train_loader, criterion, optimizer)
+            (
+                train_loss,
+                train_angle_error,
+                train_amplitude_error,
+            ) = self._train_step(train_loader, criterion, optimizer)
 
             (
                 validation_loss,
-                angle_error,
-                amplitude_error,
+                validation_angle_error,
+                validation_amplitude_error,
             ) = self._valid_step(valid_loader, criterion)
 
             if self.save_weights and validation_loss < self.best_loss:
@@ -167,21 +181,30 @@ class BaseNetwork(nn.Module):
 
             train_losses.append(train_loss)
             validation_losses.append(validation_loss)
-            angle_errors.append(angle_error)
-            amp_errors.append(amplitude_error)
+            train_angle_errors.append(train_angle_error)
+            train_amp_errors.append(train_amplitude_error)
+            validation_angle_errors.append(validation_angle_error)
+            validation_amp_errors.append(validation_amplitude_error)
 
             if wandb.run is not None:
                 wandb.log(
                     {
-                        "train_loss": train_loss,
-                        "validation_loss": validation_loss,
-                        "angle_error": angle_error,
-                        "amplitude_error": amplitude_error,
+                        "train/loss": train_loss,
+                        "validation/loss": validation_loss,
+                        "train/angle_error": train_angle_error,
+                        "train/amplitude_error": train_amplitude_error,
+                        "validation/angle_error": validation_angle_error,
+                        "validation/amplitude_error": validation_amplitude_error,
                         "lr": self.lr_scheduler.get_last_lr()[0],
                     }
                 )
 
-        return train_losses, validation_losses, angle_errors, amp_errors
+        return (
+            train_losses,
+            validation_losses,
+            validation_angle_errors,
+            validation_amp_errors,
+        )
 
     def evaluate_model(self, eval_loader, criterion):
         self._valid_step(eval_loader, criterion)

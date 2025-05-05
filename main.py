@@ -31,11 +31,13 @@ SAVE_PATH = Path(f"results/3dof_chi_v2/{str(datetime.datetime.now())}")
 config = {
     "model": "AngleAmp",
     "epochs": 40,
-    "batch_size": 256,
-    "learning_rate": 0.009,
-    "gamma": 0.98,
+    "batch_size": 512,
+    "learning_rate": 0.00036,
+    "gamma": 0.957,
     "activation": "silu",
-    "loss": "mse",
+    "loss": "l1",
+    "weight_decay": 0,
+    "p": 0,
 }
 
 activations = {"tanh": F.tanh, "silu": F.silu}
@@ -48,11 +50,11 @@ def main():
     assert wandb.run is not None
     os.makedirs(SAVE_PATH, exist_ok=True)
 
-    with open(f"{SAVE_PATH}/config.json", "w+") as f:
-        json.dump(config, f)
+    train_data = AnisotropicData("data/3dof_chi_v2/train_medium", device=DEVICE)
+    valid_data = AnisotropicData("data/3dof_chi_v2/validation_medium", device=DEVICE)
 
-    train_data = AnisotropicData("data/3dof_chi_v2/train", device=DEVICE)
-    valid_data = AnisotropicData("data/3dof_chi_v2/validation", device=DEVICE)
+    # train_loader = train_data.get_magnets()
+    # valid_loader = valid_data.get_magnets()
 
     train_loader = DataLoader(
         train_data,
@@ -69,9 +71,18 @@ def main():
         save_path=SAVE_PATH,
         activation=activations[wandb.config.activation],
         save_weights=True,
+        p=wandb.config.p,
     ).to(torch.float64)
 
-    optimizer = Adam(params=model.parameters(), lr=wandb.config.learning_rate)
+    config["num_params"] = get_num_params(model=model)
+    with open(f"{SAVE_PATH}/config.json", "w+") as f:
+        json.dump(config, f)
+
+    optimizer = Adam(
+        params=model.parameters(),
+        lr=wandb.config.learning_rate,
+        weight_decay=wandb.config.weight_decay,
+    )
 
     model.lr_scheduler = ExponentialLR(optimizer=optimizer, gamma=wandb.config.gamma)
 

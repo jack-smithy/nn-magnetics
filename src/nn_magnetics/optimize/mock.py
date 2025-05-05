@@ -16,5 +16,4 @@ def get_mock_measurements(
     demag.apply_demag(mesh, susceptibility=susceptibility, inplace=True)
 
     B = mesh.getB(X)
-
     return torch.from_numpy(X), torch.from_numpy(B)

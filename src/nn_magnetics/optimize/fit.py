@@ -63,7 +63,7 @@ def _calc_loss(
     Returns:
         Tensor: Loss value
     """
-    susc = susceptibilities.unsqueeze(0).expand((observers.shape[0], -1)).sigmoid()
+    susc = susceptibilities.unsqueeze(0).expand((observers.shape[0], -1))
     input = torch.cat([dimensions, susc, observers], dim=1).to(torch.float64)
     B_predicted = model(input)
     return F.mse_loss(B_measured, B_predicted)
@@ -97,6 +97,7 @@ def _optimize(
     dimensions: Tensor,
     n_steps: int,
     seed: int | None = None,
+    verbose: bool = False,
 ) -> Tensor:
     """_summary_
 
@@ -126,14 +127,20 @@ def _optimize(
             dimensions=dimensions,
         )
 
-    susceptibilities = torch.nn.Parameter(torch.randn(3) * 0.1)
+    susceptibilities = torch.nn.Parameter(torch.rand(3))
     optimizer = torch.optim.Adam(params=[susceptibilities], lr=0.001)
-    for _ in tqdm(range(n_steps), disable=seed is not None):
+    for i in tqdm(range(n_steps), disable=seed is not None):
         loss = objective_func(susceptibilities)
         loss.backward()
         optimizer.step()
 
-    return susceptibilities.detach().clone().sigmoid()
+        if verbose:
+            if i % 10 == 0:
+                print(
+                    f"Step {i}: Loss={loss.item()}, Susceptibility={susceptibilities.tolist()}"
+                )
+
+    return susceptibilities.detach().clone()
 
 
 def _optimize_wrapper(args):
@@ -152,6 +159,7 @@ def optimize(
     n_steps: int,
     n_repeats: int,
     num_workers: int | None = None,
+    verbose: bool = False,
 ) -> tuple[Tensor, Tensor]:
     """
     Parallel version of the optimization function.
@@ -185,6 +193,7 @@ def optimize(
         "B_measured": B_measured,
         "dimensions": dimensions,
         "n_steps": n_steps,
+        "verbose": verbose,
     }
 
     # Generate args for each parallel run with different seeds for randomization

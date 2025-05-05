@@ -67,6 +67,7 @@ class AngleAmpCorrectionNetwork(BaseNetwork):
         save_path: Path | None = None,
         lr_scheduler: LRScheduler | None = None,
         activation: Callable[[Tensor], Tensor] = F.silu,
+        p: float = 0.2,
         save_weights: bool = True,
     ) -> None:
         super().__init__(
@@ -76,6 +77,7 @@ class AngleAmpCorrectionNetwork(BaseNetwork):
             lr_scheduler=lr_scheduler,
             activation=activation,
             save_weights=save_weights,
+            p=p,
         )
 
     @staticmethod

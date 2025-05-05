@@ -4,7 +4,7 @@ from nn_magnetics.optimize.mock import get_mock_measurements
 
 A, B = 1, 1
 SUSCEPTIBILITY = (0.2, 0.2, 0.2)
-PATH = "/Users/jacksmith/Documents/work/nn-magnetics/results/3dof_chi_v2/2025-04-30 15:39:23.157513/best_weights.pt"
+PATH = "/Users/jacksmith/Documents/work/nn-magnetics/results/3dof_chi_v2/2025-05-02 13:54:13.447989/best_weights.pt"
 
 
 def format_results(susc_mean, susc_std, precision: int = 5) -> str:
@@ -23,13 +23,16 @@ def format_results(susc_mean, susc_std, precision: int = 5) -> str:
     )
 
     errs = [
-        abs(SUSCEPTIBILITY[i] - susc_mean[i].item()) / SUSCEPTIBILITY[i] * 100
+        round(
+            abs(SUSCEPTIBILITY[i] - susc_mean[i].item()) / SUSCEPTIBILITY[i] * 100,
+            precision,
+        )
         for i in range(3)
     ]
 
     return f"""
     chi_x={a_mean}±{a_std}, chi_y={b_mean}±{b_std}, chi_z={c_mean}±{c_std}
-    {errs}
+    errors: x={errs[0]}%, y={errs[1]}%, z={errs[2]}%, overall: {sum(errs)/3}%
     """
 
 
@@ -47,8 +50,9 @@ def main():
         B_measured=B_measured,
         a=A,
         b=B,
-        n_steps=100,
-        n_repeats=20,
+        n_steps=1000,
+        n_repeats=2,
+        verbose=True,
     )
 
     print(format_results(susc_mean, susc_std))
