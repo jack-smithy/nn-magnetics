@@ -30,10 +30,10 @@ SAVE_PATH = Path(f"results/3dof_chi_v2/{str(datetime.datetime.now())}")
 
 config = {
     "model": "AngleAmp",
-    "epochs": 40,
-    "batch_size": 512,
-    "learning_rate": 0.00036,
-    "gamma": 0.957,
+    "epochs": 45,
+    "batch_size": 268,
+    "learning_rate": 0.00135,
+    "gamma": 0.96,
     "activation": "silu",
     "loss": "l1",
     "weight_decay": 0,
@@ -50,8 +50,8 @@ def main():
     assert wandb.run is not None
     os.makedirs(SAVE_PATH, exist_ok=True)
 
-    train_data = AnisotropicData("data/3dof_chi_v2/train_medium", device=DEVICE)
-    valid_data = AnisotropicData("data/3dof_chi_v2/validation_medium", device=DEVICE)
+    train_data = AnisotropicData("data/3dof_chi_v2/train", device=DEVICE)
+    valid_data = AnisotropicData("data/3dof_chi_v2/validation", device=DEVICE)
 
     # train_loader = train_data.get_magnets()
     # valid_loader = valid_data.get_magnets()

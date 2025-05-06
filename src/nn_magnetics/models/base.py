@@ -35,9 +35,9 @@ class FeedForward(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.linear(x)
-        x = self.layernorm(x)
+        # x = self.layernorm(x)
         x = self.activation(x)
-        x = self.dropout(x)
+        # x = self.dropout(x)
         return x
 
 
@@ -55,14 +55,12 @@ class BaseNetwork(nn.Module):
         super().__init__()
 
         self.layers = nn.Sequential(
-            FeedForward(in_features, 128, activation, p),
-            FeedForward(128, 48, activation, p),
-            FeedForward(48, 48, activation, p),
-            FeedForward(48, 48, activation, p),
-            FeedForward(48, 48, activation, p),
-            FeedForward(48, 48, activation, p),
-            FeedForward(48, 128, activation, p),
-            nn.Linear(128, out_features),
+            FeedForward(in_features, 24, activation, p),
+            FeedForward(24, 48, activation, p),
+            FeedForward(48, 24, activation, p),
+            FeedForward(24, 12, activation, p),
+            FeedForward(12, 6, activation, p),
+            FeedForward(6, 4, activation, p),
         )
 
         self.best_weights = deepcopy(self).state_dict()
