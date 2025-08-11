@@ -1,7 +1,6 @@
 from typing import Type
 
 import torch
-import torch.multiprocessing as mp
 import torch.nn.functional as F
 from torch import Tensor
 from tqdm import tqdm
@@ -9,38 +8,33 @@ from tqdm import tqdm
 from nn_magnetics.models import BaseNetwork
 
 
-def vector_field_correlation(B1, B2):
-    # Check if shapes match and are of the expected form
-    if B1.shape != B2.shape:
-        raise ValueError(
-            f"Input vector fields must have the same shape. Got {B1.shape} and {B2.shape}"
+def format_results(susc_mean, susc_std, precision: int = 5) -> str:
+    """Process and format the results"""
+
+    a_mean, b_mean, c_mean = (
+        round(susc_mean[0].item(), precision),
+        round(susc_mean[1].item(), precision),
+        round(susc_mean[2].item(), precision),
+    )
+
+    a_std, b_std, c_std = (
+        round(susc_std[0].item(), precision),
+        round(susc_std[1].item(), precision),
+        round(susc_std[2].item(), precision),
+    )
+
+    errs = [
+        round(
+            abs(SUSCEPTIBILITY[i] - susc_mean[i].item()) / SUSCEPTIBILITY[i] * 100,
+            precision,
         )
+        for i in range(3)
+    ]
 
-    if B1.shape[1] != 3:
-        raise ValueError(f"Expected vector fields with shape (N, 3), got {B1.shape}")
-
-    # Calculate dot product at each point
-    # (B1 * B2).sum(dim=1) gives the dot product for each point
-    point_dot_products = torch.sum(B1 * B2, dim=1)
-
-    # Sum all dot products for the numerator
-    numerator = torch.sum(point_dot_products)
-
-    # Calculate the squared magnitudes at each point
-    B1_squared_magnitudes = torch.sum(B1 * B1, dim=1)
-    B2_squared_magnitudes = torch.sum(B2 * B2, dim=1)
-
-    # Sum the squared magnitudes
-    sum_B1_squared = torch.sum(B1_squared_magnitudes)
-    sum_B2_squared = torch.sum(B2_squared_magnitudes)
-
-    # Calculate denominator: sqrt of product of sum of squared magnitudes
-    denominator = torch.sqrt(sum_B1_squared * sum_B2_squared)
-
-    # Calculate correlation coefficient
-    correlation = numerator / denominator
-
-    return correlation
+    return f"""
+    chi_x={a_mean}±{a_std}, chi_y={b_mean}±{b_std}, chi_z={c_mean}±{c_std}
+    errors: x={errs[0]}%, y={errs[1]}%, z={errs[2]}%, overall: {sum(errs)/3}%
+    """
 
 
 def _calc_loss(
@@ -86,6 +80,8 @@ def _build_model(model_cls: Type[BaseNetwork], path: str) -> BaseNetwork:
         activation=F.silu,
         save_path=None,
         save_weights=False,
+        p=0.2,
+        do_output_activation=False,
     ).to(torch.float64)
 
 
@@ -118,6 +114,9 @@ def _optimize(
 
     model = _build_model(model_cls=model_cls, path=path)
 
+    susceptibilities = torch.nn.Parameter(torch.rand(3))
+    optimizer = torch.optim.Adagrad(params=[susceptibilities], lr=0.001)
+
     def objective_func(susceptibilities):
         return _calc_loss(
             model=model,
@@ -127,8 +126,6 @@ def _optimize(
             dimensions=dimensions,
         )
 
-    susceptibilities = torch.nn.Parameter(torch.rand(3))
-    optimizer = torch.optim.Adam(params=[susceptibilities], lr=0.001)
     for i in tqdm(range(n_steps), disable=seed is not None):
         loss = objective_func(susceptibilities)
         loss.backward()
@@ -158,7 +155,6 @@ def optimize(
     b: float,
     n_steps: int,
     n_repeats: int,
-    num_workers: int | None = None,
     verbose: bool = False,
 ) -> tuple[Tensor, Tensor]:
     """
@@ -177,15 +173,6 @@ def optimize(
     n_samples = observers.shape[0]
     dimensions = torch.tensor([a, b]).unsqueeze(0).expand((n_samples, -1))
 
-    if num_workers is None:
-        num_workers = min(n_repeats, mp.cpu_count())
-
-    if mp.get_start_method(allow_none=True) != "spawn":
-        try:
-            mp.set_start_method("spawn", force=True)
-        except RuntimeError:
-            pass
-
     kwargs = {
         "model_cls": model_cls,
         "path": path,
@@ -199,16 +186,8 @@ def optimize(
     # Generate args for each parallel run with different seeds for randomization
     args_list = [(i, kwargs) for i in range(n_repeats)]
 
-    # Run optimizations in parallel
-    if num_workers > 1:
-        print(
-            f"Running {n_repeats} optimizations for {n_steps} steps in parallel using {num_workers} workers"
-        )
-        with mp.Pool(processes=num_workers) as pool:
-            suscs = pool.map(_optimize_wrapper, args_list)
-    else:
-        print(f"Running {n_repeats} optimizations for {n_steps} steps sequentially")
-        suscs = [_optimize_wrapper(args) for args in args_list]
+    print(f"Running {n_repeats} optimizations for {n_steps} steps sequentially")
+    suscs = [_optimize_wrapper(args) for args in args_list]
 
     suscs = torch.stack(suscs)
 

@@ -1,66 +1,164 @@
-import torch
-from torch import nn
-from torch.nn import functional as F
-from torch.optim import Adam, lr_scheduler
-from torch.utils.data import DataLoader, Dataset
+import magpylib as magpy
+import pyvista as pv
+import numpy as np
 
+# Create a magnet with Magpylib
+magnet = magpy.magnet.Cuboid(polarization=(0, 0, 1), dimension=(0.01, 0.01, 0.01))
 
-# Load the state dictionary without loading it into a model
-state_dict = torch.load(
-    "/Users/jacksmith/Documents/work/nn-magnetics/results/3dof_chi_v2/2025-04-30 10:56:20.115777/best_weights.pt"
+# Create a 3D grid with Pyvista
+grid = pv.ImageData(
+    dimensions=(41, 41, 41),
+    spacing=(0.002, 0.002, 0.002),
+    origin=(-0.04, -0.04, -0.04),
 )
 
-# Print all keys and their shapes
-print("State dictionary contents:")
-for key, value in state_dict.items():
-    if isinstance(value, torch.Tensor):
-        print(f"{key}: shape={value.shape}, dtype={value.dtype}")
-    else:
-        print(f"{key}: {type(value)}")
+pl = pv.Plotter()
 
-# Random data
-x = torch.randn(100, 10)
-y = torch.randn(100, 1)
+# Add magnet to scene - streamlines units are assumed to be meters
+magpy.show(magnet, canvas=pl, units_length="m", backend="pyvista")
+offset = 0.005
 
+start_points = np.array(
+    [
+        [0.01, 0.01, 0.01],
+        [-0.01, 0.01, 0.01],
+        [0.01, -0.01, 0.01],
+        [-0.01, -0.01, 0.01],
+        [0.01 + offset, 0.01 + offset, -0.01 - offset],
+        [-0.01 - offset, 0.01 + offset, -0.01 - offset],
+        [0.01 + offset, -0.01 - offset, -0.01 - offset],
+        [-0.01 - offset, -0.01 - offset, -0.01 - offset],
+    ]
+)
 
-class MockData(Dataset):
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
+# Corresponding direction vectors
+directions = 0.5 * np.array(
+    [
+        # (+, +, +)
+        [0.01, 0.01, 0.01],
+        # (-, +, +)
+        [-0.01, 0.01, 0.01],
+        # (+, -, +)
+        [0.01, -0.01, 0.01],
+        # (-, -, +)
+        [-0.01, -0.01, 0.01],
+        # (+, +, -)
+        [-0.01, -0.01, 0.01],
+        # (-, +, -)
+        [0.01, -0.01, 0.01],
+        # (+, -, -)
+        [-0.01, 0.01, 0.01],
+        # (-, -, -)
+        [0.01, 0.01, 0.01],
+    ]
+)
 
-    def __len__(self):
-        return x.shape[0]
+# Add arrows to the plot
+pl.add_arrows(
+    start_points,
+    directions,
+    mag=1,  # scale factor for visualization
+    color="red",
+)
 
-    def __getitem__(self, index):
-        return self.x[index], self.y[index]
+# Add transparent coordinate planes
+plane_opacity = 0.3
+plane_resolution = (10, 10)
+plane_size = 0.03  # Half-width of the plane in each direction
+colours = ["lightblue", "lightgreen", "lightcoral"]
 
+# XY plane at z=0
+xy_plane = pv.Plane(
+    center=(0, 0, 0),
+    direction=(0, 0, 1),
+    i_size=plane_size * 2,
+    j_size=plane_size * 2,
+    i_resolution=plane_resolution[0],
+    j_resolution=plane_resolution[1],
+)
+pl.add_mesh(xy_plane, color=colours[0], opacity=plane_opacity, show_edges=False)
 
-data = MockData(x, y)
+# YZ plane at x=0
+yz_plane = pv.Plane(
+    center=(0, 0, 0),
+    direction=(1, 0, 0),
+    i_size=plane_size * 2,
+    j_size=plane_size * 2,
+    i_resolution=plane_resolution[0],
+    j_resolution=plane_resolution[1],
+)
+pl.add_mesh(yz_plane, color=colours[1], opacity=plane_opacity, show_edges=False)
 
-loader = DataLoader(dataset=data, batch_size=10)
+# XZ plane at y=0
+xz_plane = pv.Plane(
+    center=(0, 0, 0),
+    direction=(0, 1, 0),
+    i_size=plane_size * 2,
+    j_size=plane_size * 2,
+    i_resolution=plane_resolution[0],
+    j_resolution=plane_resolution[1],
+)
+pl.add_mesh(xz_plane, color=colours[2], opacity=plane_opacity, show_edges=False)
 
-# Simple model
-model = nn.Sequential(nn.Linear(10, 50), nn.ReLU(), nn.Linear(50, 1))
+axis_length = plane_size
 
-# Loss and optimizer
-criterion = nn.MSELoss()
-optimizer = Adam(model.parameters(), lr=0.01)
-scheduler = lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=0.9)
+r = 0.01 + offset / 2
+width = 4
 
-# Training loop
-for epoch in range(100):
-    losses = []
-    for xi, yi in loader:
-        y_pred = model(xi)
-        loss = criterion(y_pred, yi)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        losses.append(loss)
+# X axis (red)
+pl.add_lines(
+    np.array([[r, -r, r], [r, r, r]]),
+    color=colours[2],
+    width=width,
+)
 
-    scheduler.step()
-    epoch_loss = torch.stack(losses)
+pl.add_lines(
+    np.array([[r, -r, r], [-r, -r, r]]),
+    color=colours[1],
+    width=width,
+)
 
-    if epoch % 10 == 0:
-        print(scheduler.get_lr())
-        print(f"Epoch {epoch}, Loss: {epoch_loss.mean().item():.4f}")
+pl.add_lines(
+    np.array([[r, -r, r], [r, -r, -r]]),
+    color=colours[0],
+    width=width,
+)
+
+pl.add_points(
+    np.array([r, 0, r]),
+    render_points_as_spheres=True,
+    point_size=20,
+    color="black",
+    opacity=0.5,
+)
+
+pl.add_points(
+    np.array([r, 0, r]),
+    render_points_as_spheres=True,
+    point_size=20,
+    color="black",
+    opacity=0.5,
+)
+
+pl.add_points(
+    np.array([0, -r, r]),
+    render_points_as_spheres=True,
+    point_size=20,
+    color="black",
+    opacity=0.5,
+)
+
+pl.add_points(
+    np.array([r, -r, 0]),
+    render_points_as_spheres=True,
+    point_size=20,
+    color="black",
+    opacity=0.5,
+)
+
+# Show scene
+
+# # Prepare and show scene
+pl.camera.position = (0.09, 0.02, 0.02)
+pl.show()
+pl.screenshot("field_symmetry.png", return_img=False)

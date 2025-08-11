@@ -14,7 +14,7 @@ from torch.optim.lr_scheduler import LRScheduler
 
 import wandb
 from nn_magnetics.utils.metrics import angle_error, relative_amplitude_error
-from nn_magnetics.utils.physics import Dz_cuboid, Bfield_homogeneous
+from nn_magnetics.utils.physics import Bfield_homogeneous, Dz_cuboid
 
 type Activation = Callable[[torch.Tensor], torch.Tensor]
 
@@ -24,20 +24,26 @@ class FeedForward(nn.Module):
         self,
         in_features: int,
         out_features: int,
-        activation: Activation,
-        p: float,
+        activation: Activation | None = None,
+        p: float = 0,
     ):
         super().__init__()
-        self.linear = nn.Linear(in_features=in_features, out_features=out_features)
+        self.linear = nn.Linear(in_features, out_features)
         self.activation = activation
-        self.dropout = nn.Dropout(p=p)
-        self.layernorm = nn.LayerNorm(out_features)
+        # self.layernorm = nn.LayerNorm(out_features)
+
+        # if p is not None:
+        #     self.dropout = nn.Dropout(p=p)
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.linear(x)
         # x = self.layernorm(x)
-        x = self.activation(x)
+
+        if self.activation is not None:
+            x = self.activation(x)
+
         # x = self.dropout(x)
+
         return x
 
 
@@ -46,23 +52,28 @@ class BaseNetwork(nn.Module):
         self,
         in_features: int,
         out_features: int,
+        do_output_activation: bool,
         save_path: Path | None = None,
         lr_scheduler: LRScheduler | None = None,
         activation: Activation = F.silu,
-        p: float = 0.2,
+        p: float = 0.0,
         save_weights: bool = True,
     ) -> None:
         super().__init__()
 
+        output_activation = activation if do_output_activation else None
+
         self.layers = nn.Sequential(
-            FeedForward(in_features, 24, activation, p),
-            FeedForward(24, 48, activation, p),
-            FeedForward(48, 24, activation, p),
-            FeedForward(24, 12, activation, p),
-            FeedForward(12, 6, activation, p),
-            FeedForward(6, 4, activation, p),
+            FeedForward(in_features, 128, activation, p),
+            FeedForward(128, 48, activation, p),
+            FeedForward(48, 48, activation, p),
+            FeedForward(48, 48, activation, p),
+            FeedForward(48, 128, activation, p),
+            FeedForward(128, out_features, output_activation, p),
         )
 
+        self.activation = activation
+        self.do_output_activation = do_output_activation
         self.best_weights = deepcopy(self).state_dict()
         self.save_path = save_path
         self.lr_scheduler = lr_scheduler
@@ -77,14 +88,14 @@ class BaseNetwork(nn.Module):
             polarizations=polarizations,
         )
 
-        feature = self._construct_feature(
+        x = self._construct_feature(
             observers=observers,
             dimensions=dimensions,
             polarizations=polarizations,
             susceptibilities=susceptibilities,
         )
 
-        prediction = self.layers(feature)
+        prediction = self.layers(x)
 
         return self.correct_ansatz(B_reduced=B_reduced, prediction=prediction)
 
@@ -97,8 +108,8 @@ class BaseNetwork(nn.Module):
         for X, B in train_loader:
             # get the prediction (forward pass)
             B_demag = B[..., :3]
-            B_corrected = self(X)
 
+            B_corrected = self(X)
             # calculate loss
             loss = criterion(B_demag, B_corrected)
             history.append(loss.item())
@@ -128,6 +139,7 @@ class BaseNetwork(nn.Module):
             for X, B in valid_loader:
                 # get the prediction (forward pass)
                 B_demag = B[..., :3]
+
                 B_corrected = self(X)
 
                 # calculate loss
@@ -157,7 +169,7 @@ class BaseNetwork(nn.Module):
         validation_amp_errors = []
 
         self.best_loss = np.inf
-        for _ in tqdm.tqdm(range(epochs), unit="epochs"):
+        for step in tqdm.tqdm(range(epochs), unit="epochs"):
             (
                 train_loss,
                 train_angle_error,
@@ -193,8 +205,10 @@ class BaseNetwork(nn.Module):
                         "train/amplitude_error": train_amplitude_error,
                         "validation/angle_error": validation_angle_error,
                         "validation/amplitude_error": validation_amplitude_error,
-                        "lr": self.lr_scheduler.get_last_lr()[0],
-                    }
+                        "stats/lr": self.lr_scheduler.get_last_lr()[0],
+                    },
+                    commit=True,
+                    step=step + 1,
                 )
 
         return (
@@ -213,12 +227,13 @@ class BaseNetwork(nn.Module):
         amp_errors = relative_amplitude_error(B_demag, B_corrected, return_abs=True)
         return torch.mean(angle_errors), torch.mean(amp_errors)
 
-    @staticmethod
-    def correct_ansatz(B_reduced: Tensor, prediction: Tensor) -> Tensor:
+    def correct_ansatz(self, B_reduced: Tensor, prediction: Tensor) -> Tensor:
         raise NotImplementedError()
 
     @classmethod
-    def load_from_path(cls, path, *, activation, save_weights, save_path):
+    def load_from_path(
+        cls, path, *, activation, save_weights, save_path, p, do_output_activation
+    ):
         raise NotImplementedError()
 
     def save(self):

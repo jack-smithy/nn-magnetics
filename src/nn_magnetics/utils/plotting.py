@@ -5,13 +5,10 @@ from matplotlib.axes import Axes
 import numpy as np
 import torch
 from matplotlib import colors, patches
-from scipy.stats import gaussian_kde
 
-from nn_magnetics.data.dataset import IsotropicData
 from nn_magnetics.utils.metrics import (
     calculate_metrics_baseline,
     calculate_metrics_trained,
-    calculate_metrics_trained_gnn,
 )
 
 plt.rcParams.update(
@@ -157,104 +154,41 @@ def plot_training(
         plt.show()
 
 
-def plot_baseline_histograms(B, figsize=(10, 8), bins=20):
+def plot_baseline_histograms(B, figsize=(10, 8), bins=20, reduction=np.mean):
     angle_errors, amplitude_errors = [], []
 
     for Bi in B:
         angle_error, amp_error = calculate_metrics_baseline(Bi)
-        angle_errors.append(torch.mean(angle_error))
-        amplitude_errors.append(torch.mean(amp_error))
+        angle_errors.append(reduction(angle_error.numpy()))
+        amplitude_errors.append(reduction(amp_error.numpy()))
 
-    fig, ax = plt.subplots(ncols=2, nrows=1, figsize=figsize)
+    fig, ax = plt.subplots(ncols=2, nrows=1, figsize=figsize, sharey=True)
 
     mean_angle_baseline = np.mean(angle_errors)
     mean_amp_baseline = np.mean(amplitude_errors)
 
-    ax[0].set_ylabel("Count (Baseline)")
+    ax[0].set_ylabel("Frequency")
     ax[0].hist(
-        amplitude_errors,
+        angle_errors,
         bins=bins,
         label=f"Avg Error: {round(mean_amp_baseline, 2)}%",
+        color=colors_[1],
+        edgecolor="black",
     )
-    ax[0].legend()
-    ax[0].set_xlabel("Mean Relative Amplitude Error")
+    # ax[0].legend()
+    ax[0].set_xlabel("Angle Error (°)")
 
     ax[1].hist(
-        angle_errors,
-        bins=bins,
-        label=f"Avg Error: {round(mean_angle_baseline, 2)}°",
-    )
-    ax[1].set_xlabel("Mean Angle Error")
-    ax[1].legend()
-
-    return fig, ax
-
-
-def plot_histograms_gnn(loader, model, save_path, figsize=(8, 8), bins=20, tag=""):
-    angle_errors_baseline, amplitude_errors_baseline = [], []
-
-    for graph in loader:
-        angle_error, amp_error = calculate_metrics_baseline(graph.y)
-        angle_errors_baseline.append(torch.mean(angle_error))
-        amplitude_errors_baseline.append(torch.mean(amp_error))
-
-    angle_errors, amplitude_errors = [], []
-
-    for graph in loader:
-        angle_error, amp_error = calculate_metrics_trained_gnn(graph, model)
-        angle_errors.append(torch.nan_to_num(torch.mean(angle_error), nan=180.0))
-        amplitude_errors.append(torch.mean(amp_error))
-
-    fig, ax = plt.subplots(
-        ncols=2,
-        nrows=2,
-        figsize=figsize,
-        sharex="col",
-        sharey="col",
-    )
-
-    mean_angle_baseline = round(float(np.mean(angle_errors_baseline)), 4)
-    mean_amp_baseline = round(float(np.mean(amplitude_errors_baseline)), 4)
-    mean_angle = round(float(np.mean(angle_errors)), 4)
-    mean_amp = round(float(np.mean(amplitude_errors)), 4)
-
-    ax[0, 0].set_ylabel("Count (Baseline)")
-    ax[0, 0].hist(
-        angle_errors_baseline,
-        bins=bins,
-        label=f"Avg Error: {mean_angle_baseline}°",
-    )
-    ax[0, 0].set_ylabel("Count (Baseline)")
-    ax[0, 0].legend()
-
-    ax[0, 1].hist(
-        amplitude_errors_baseline,
-        bins=bins,
-        label=f"Avg Error: {mean_amp_baseline}%",
-    )
-    ax[0, 1].legend()
-
-    ax[1, 0].hist(
-        angle_errors,
-        bins=bins,
-        label=f"Avg Error: {mean_angle}°",
-    )
-    ax[1, 0].set_xlabel("Mean Angle Error (°)")
-    ax[1, 0].set_ylabel("Count (NN Correction)")
-    ax[1, 0].legend()
-
-    ax[1, 1].hist(
         amplitude_errors,
         bins=bins,
-        label=f"Avg Error: {mean_amp}%",
+        label=f"Avg Error: {round(mean_angle_baseline, 2)}°",
+        color=colors_[1],
+        edgecolor="black",
     )
-    ax[1, 1].set_xlabel("Mean Relative Amplitude Error (%)")
-    ax[1, 1].legend()
+    ax[1].set_xlabel("Amplitude Error (%)")
+    plt.tight_layout()
 
-    if save_path is not None:
-        fig.savefig(f"{save_path}/histograms{tag}.png")
-    else:
-        plt.show()
+    return fig, ax
 
 
 def plot_histograms(X, B, model, save_path, figsize=(8, 8), tag=""):
@@ -340,6 +274,153 @@ def plot_histograms(X, B, model, save_path, figsize=(8, 8), tag=""):
     # x_vals = np.linspace(min(amplitude_errors), max(amplitude_errors), 1000)
     # ax[1].plot(x_vals, kde(x_vals))
     ax[1].set_xlabel("Amplitude Error (%)")
+
+    plt.tight_layout()
+
+    if save_path is not None:
+        fig.savefig(f"{save_path}/histograms{tag}.pdf", format="pdf")
+    else:
+        plt.show()
+
+
+def plot_histograms_with_baseline(X, B, model, save_path, figsize=(8, 8), tag=""):
+    def get_bins(data):
+        data_min = min(data)
+        data_max = max(data)
+
+        # Define your desired bar width
+        bar_width = 0.02  # Set this to whatever width you want
+
+        # Calculate the number of bins needed based on the width
+        num_bins = int(np.ceil((data_max - data_min) / bar_width))
+
+        # Create bins with fixed width
+        bins = np.linspace(data_min, data_min + num_bins * bar_width, num_bins + 1)
+        return bins
+
+    angle_errors_baseline, amplitude_errors_baseline = [], []
+
+    for Bi in B:
+        angle_error, amp_error = calculate_metrics_baseline(Bi)
+        angle_errors_baseline.append(torch.max(angle_error))
+        amplitude_errors_baseline.append(torch.max(amp_error))
+
+    angle_errors, amplitude_errors = [], []
+
+    for Xi, Bi in zip(X, B):
+        angle_error, amp_error = calculate_metrics_trained(Xi, Bi, model)
+        angle_errors.append(torch.nan_to_num(torch.max(angle_error), nan=180.0))
+        amplitude_errors.append(torch.max(amp_error))
+
+    mean_angle_baseline = round(float(np.mean(angle_errors_baseline)), 4)
+    mean_amp_baseline = round(float(np.mean(amplitude_errors_baseline)), 4)
+    mean_angle = round(float(np.mean(angle_errors)), 4)
+    mean_amp = round(float(np.mean(amplitude_errors)), 4)
+
+    ax: list[list[Axes]]
+    fig, ax = plt.subplots(
+        ncols=2,
+        nrows=2,
+        figsize=figsize,
+        sharey="col",
+        sharex="col",
+    )
+
+    # |-----|-----|
+    # |(0,0)|(0,1)|
+    # |-----|-----|
+    # |(1,0)|(1,1)|
+    # |-----|-----|
+
+    # baseline angle
+    ax[0][0].hist(
+        angle_errors_baseline,
+        # bins=get_bins(angle_errors_baseline),
+        bins=30,
+        label=f"Avg Error: {mean_angle_baseline}°",
+        # edgecolor="black",
+        color=colors_[1],
+    )
+
+    # kde = gaussian_kde(angle_errors_baseline)
+    # x_vals = np.linspace(
+    #     min(angle_errors_baseline),
+    #     max(angle_errors_baseline),
+    #     1000,
+    # )
+    # ax[0][0].plot(
+    #     x_vals,
+    #     kde(x_vals),
+    #     label=f"Avg Error: {mean_angle_baseline}°",
+    #     color=colors_[1],
+    # )
+
+    ax[0][0].set_ylabel("Count (Analytical Solution)")
+    ax[0][0].legend()
+
+    # baseline amplitude
+
+    ax[0][1].hist(
+        amplitude_errors_baseline,
+        # bins=get_bins(amplitude_errors_baseline),
+        bins=30,
+        label=f"Avg Error: {mean_amp_baseline}%",
+        # edgecolor="black",
+        color=colors_[1],
+    )
+
+    # kde = gaussian_kde(amplitude_errors_baseline)
+    # x_vals = np.linspace(
+    #     min(amplitude_errors_baseline),
+    #     max(amplitude_errors_baseline),
+    #     1000,
+    # )
+    # ax[0][1].plot(
+    #     x_vals,
+    #     kde(x_vals),
+    #     label=f"Avg Error: {mean_amp_baseline}%",
+    #     color=colors_[1],
+    # )
+    ax[0][1].legend()
+
+    ax[1][0].hist(
+        angle_errors,
+        # bins=get_bins(angle_errors),
+        bins=30,
+        label=f"Avg Error: {mean_angle}°",
+        # edgecolor="black",
+        color=colors_[1],
+    )
+    # kde = gaussian_kde(angle_errors)
+    # x_vals = np.linspace(min(angle_errors), max(angle_errors), 1000)
+    # ax[1][0].plot(
+    #     x_vals,
+    #     kde(x_vals),
+    #     label=f"Avg Error: {mean_angle}°",
+    #     color=colors_[1],
+    # )
+    ax[1][0].legend()
+    ax[1][0].set_xlabel("Angle Error (°)")
+    ax[1][0].set_ylabel("Count (NN)")
+
+    ax[1][1].hist(
+        amplitude_errors,
+        # bins=get_bins(amplitude_errors),
+        bins=30,
+        label=f"Avg Error: {mean_amp}%",
+        # edgecolor="black",
+        color=colors_[1],
+    )
+    # kde = gaussian_kde(amplitude_errors)
+    # x_vals = np.linspace(min(amplitude_errors), max(amplitude_errors), 1000)
+    # ax[1][1].plot(
+    #     x_vals,
+    #     kde(x_vals),
+    #     label=f"Avg Error: {mean_amp}°",
+    #     color=colors_[1],
+    # )
+    ax[1][1].set_xlabel("Amplitude Error (%)")
+    ax[1][1].legend()
 
     plt.tight_layout()
 
@@ -450,8 +531,8 @@ def plot_heatmaps_amplitude(
     eps_x = 0.01
     eps_y = 0.01
 
-    x = grid.T[0] * a
-    y = grid.T[1] * b
+    x = grid.T[0]
+    y = grid.T[1]
     z = grid.T[2]
 
     mask = y == y[0]
@@ -509,28 +590,6 @@ def plot_heatmaps_amplitude(
     axs: Axes
     fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(6, 5))
 
-    # mesh = axs[0].pcolormesh(
-    #     x_edges,
-    #     z_edges,
-    #     heatmap_amplitude_trained.T,
-    #     shading="auto",
-    #     cmap=plt.cm.get_cmap("RdBu_r"),
-    #     norm=norm,
-    # )
-
-    # axs[0].set_ylabel("Z (a.u.)")
-    # axs[0].set_title("NN Correction", loc="left")
-    # axs[0].add_patch(
-    #     patches.Rectangle(
-    #         (0, 0),
-    #         width=a / 2 + eps_x,
-    #         height=1 / 2 + eps_y,
-    #         linewidth=2,
-    #         edgecolor="k",
-    #         facecolor="white",
-    #     )
-    # )
-
     mesh = axs.pcolormesh(
         x_edges,
         z_edges,
@@ -542,7 +601,9 @@ def plot_heatmaps_amplitude(
 
     axs.set_xlabel("X (a.u.)")
     axs.set_ylabel("Z (a.u.)")
-    # axs.set_title("Analytical Solution", loc="left")
+    axs.set_xlim((0, a * 2.5))
+    axs.set_ylim((0, 2.5))
+
     axs.add_patch(
         patches.Rectangle(
             (0, 0),
@@ -554,10 +615,9 @@ def plot_heatmaps_amplitude(
         )
     )
 
-    cbar = fig.colorbar(mesh, ax=axs, location="bottom")  # type: ignore (its a ndarray rather than list but list is better for type hi)
+    cbar = fig.colorbar(mesh, ax=axs, location="bottom")  # type: ignore
     tick_locations = [-10, -1, -0.1, 0, 0.1, 1, 10]
 
-    # Set the tick locations and format them as regular numbers
     cbar.set_ticks(tick_locations)
     cbar.set_ticklabels([f"{x:.1f}" for x in tick_locations])
 
@@ -576,8 +636,8 @@ def plot_heatmaps_angle(
     eps_x = 0.01
     eps_y = 0.01
 
-    x = grid.T[0] * a
-    y = grid.T[1] * b
+    x = grid.T[0]
+    y = grid.T[1]
     z = grid.T[2]
 
     mask = y == y[0]
@@ -632,32 +692,8 @@ def plot_heatmaps_angle(
         where=heatmap_counts_angle_baseline != 0,
     )
 
-    # Plot the heatmap
     axs: Axes
     fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(6, 5))
-
-    # mesh = axs[0].pcolormesh(
-    #     x_edges,
-    #     z_edges,
-    #     heatmap_angle_trained.T,
-    #     shading="auto",
-    #     cmap=plt.get_cmap("Reds"),
-    #     norm=norm,
-    # )
-    # # axs[0].quiver(x_slice, z_slice, Bx, Bz)
-    # axs[0].set_ylabel("Z (a.u.)")
-    # axs[0].set_title("NN Correction", loc="left")
-    # axs[0].add_patch(
-    #     patches.Rectangle(
-    #         (0, 0),
-    #         width=a / 2 + eps_x,
-    #         height=1 / 2 + eps_y,
-    #         linewidth=2,
-    #         edgecolor="k",
-    #         facecolor="white",
-    #     )
-    # )
-    # # plt.colorbar(mesh, label="Relative amplitude error (%)", ax=axs[0])
 
     mesh = axs.pcolormesh(
         x_edges,
@@ -667,10 +703,12 @@ def plot_heatmaps_angle(
         cmap=plt.get_cmap("Reds"),
         norm=norm,
     )
-    # axs[1].quiver(x_slice, z_slice, Bx_pred, Bz_pred)
+
     axs.set_xlabel("X (a.u.)")
     axs.set_ylabel("Z (a.u.)")
-    # axs.set_title("Analytical Solution", loc="left")
+    axs.set_xlim((0, a * 2.5))
+    axs.set_ylim((0, 2.5))
+
     axs.add_patch(
         patches.Rectangle(
             (0, 0),
@@ -682,10 +720,9 @@ def plot_heatmaps_angle(
         )
     )
 
-    cbar = fig.colorbar(mesh, ax=axs, location="bottom")  # type: ignore (its a ndarray rather than list but list is better for type hi)
+    cbar = fig.colorbar(mesh, ax=axs, location="bottom")  # type: ignore
     tick_locations = [0.01, 0.1, 1, 10]
 
-    # Set the tick locations and format them as regular numbers
     cbar.set_ticks(tick_locations)
     cbar.set_ticklabels([f"{x:.1f}" for x in tick_locations])
     cbar.set_label("Angle Error (°)")
@@ -700,7 +737,7 @@ def plot_heatmaps(
     save_path: str | Path | None,
     tag: str = "",
 ):
-    grid = X[:, 5:]  # replace with 4 for anisotropic
+    grid = X[:, 5:]
     a = float(X[0, 0])
     b = float(X[0, 1])
 
@@ -740,3 +777,13 @@ def plot_heatmaps(
         fig2.savefig(f"{save_path}/angle_heatmap{tag}.pdf", format="pdf")
     else:
         plt.show()
+
+
+def plot_times(batch_sizes, times_ana, times_demag, times_nn):
+    assert len(times_ana) == len(times_demag) == len(times_nn)
+
+    plt.plot(batch_sizes, times_ana, label="Analytical solution")
+    plt.plot(batch_sizes, times_demag, label="Full Solution")
+    plt.plot(batch_sizes, times_nn, label="NN Solution")
+    plt.legend()
+    plt.show()

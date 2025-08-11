@@ -1,13 +1,11 @@
 import numpy as np
 import torch
 from torch import Tensor
+import torch.linalg as TLA
 
 
 def Dz_cuboid(dimensions: Tensor) -> Tensor:
     assert dimensions.shape[1] == 3
-    assert torch.allclose(
-        dimensions[..., 2], torch.ones(dimensions.shape[0], dtype=torch.double)
-    )
 
     a, b = dimensions[..., 0], dimensions[..., 1]
 
@@ -59,6 +57,9 @@ def demagnetizing_factor(a: float, b: float, c: float) -> float:
 
 
 def batch_rotation_matrices(angles: Tensor) -> Tensor:
+    if len(angles.shape) == 1:
+        angles = angles.unsqueeze(0)
+
     assert angles.shape[0] > 0 and angles.shape[1] == 3
 
     alpha = angles.T[0]
@@ -325,3 +326,25 @@ def Bfield_homogeneous(
 
     B /= 4 * torch.pi
     return B
+
+
+def cartesian_to_spherical(inputs: Tensor) -> Tensor:
+    assert inputs.shape[1] == 3
+    x, y, z = inputs.T
+
+    r = torch.sqrt(x**2 + y**2 + z**2)
+    theta = torch.atan2(torch.sqrt(x**2 + y**2), z)
+    phi = torch.atan2(y, x)
+
+    return torch.stack([r, theta, phi], dim=-1)
+
+
+def spherical_to_cartesian(inputs: Tensor) -> Tensor:
+    assert inputs.shape[1] == 3
+    r, theta, phi = inputs.T
+
+    x = r * torch.sin(theta) * torch.cos(phi)
+    y = r * torch.sin(theta) * torch.sin(phi)
+    z = r * torch.cos(theta)
+
+    return torch.stack([x, y, z], dim=-1)

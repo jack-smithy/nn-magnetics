@@ -33,6 +33,11 @@ dependencies = [
     "torch-sparse>=0.6.18",
     "scienceplots>=2.1.1",
     "bayesian-optimization>=2.0.3",
+    "xgboost>=3.0.0",
+    "pytorch-minimize>=0.0.2",
+    "pyvista>=0.45.2",
+    "stl>=0.0.3",
+    "numpy-stl>=3.2.0",
 ]
 
 [build-system]

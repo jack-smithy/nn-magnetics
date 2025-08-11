@@ -3,10 +3,8 @@ import json
 import os
 from pathlib import Path
 
-import numpy as np
-import torch.nn.functional as F
-from torch import nn
 import torch
+import torch.nn.functional as F
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import DataLoader
@@ -14,47 +12,67 @@ from torch.utils.data import DataLoader
 import wandb
 from nn_magnetics.data import AnisotropicData
 from nn_magnetics.models import (
-    QuaternionNet,
-    FieldCorrectionNetwork,
     AngleAmpCorrectionNetwork,
+    BaseNetwork,
+    FieldCorrectionNetwork,
+    QuaternionNet,
+    AdditionCorrectionNetwork,
+    SphericalCorrectionNetwork,
     get_num_params,
 )
+
 from nn_magnetics.utils.plotting import (
     plot_heatmaps,
-    plot_histograms,
     plot_training,
+    plot_histograms_with_baseline,
 )
 
 DEVICE = "cpu"
-SAVE_PATH = Path(f"results/3dof_chi_v2/{str(datetime.datetime.now())}")
+DTYPE = torch.float32
+PROJECT = "3dof_chi_spherical"
+SAVE_PATH = Path(f"results/{PROJECT}/{str(datetime.datetime.now())}")
 
 config = {
-    "model": "AngleAmp",
-    "epochs": 45,
-    "batch_size": 268,
-    "learning_rate": 0.00135,
-    "gamma": 0.96,
-    "activation": "silu",
-    "loss": "l1",
+    "epochs": 50,
+    "batch_size": 2048,
+    "learning_rate": 0.001,
+    "gamma": 0.95,
     "weight_decay": 0,
-    "p": 0,
+    "p": 0.00,
+    "do_output_activation": False,
+    "activation": "gelu",
+    "loss": "l1",
+    "network": "spherical",
+    "size": "large",
 }
 
-activations = {"tanh": F.tanh, "silu": F.silu}
 losses = {"l1": F.l1_loss, "mse": F.mse_loss}
+
+activations = {
+    "silu": F.silu,
+    "tanh": F.tanh,
+    "gelu": F.gelu,
+    "sigmoid": F.sigmoid,
+}
 
 
 def main():
-    wandb.init(project="3dof_chi_v2", config=config)
+    wandb.init(project=PROJECT, config=config)
 
     assert wandb.run is not None
     os.makedirs(SAVE_PATH, exist_ok=True)
 
-    train_data = AnisotropicData("data/3dof_chi_v2/train", device=DEVICE)
-    valid_data = AnisotropicData("data/3dof_chi_v2/validation", device=DEVICE)
+    train_data = AnisotropicData(
+        f"data/3dof_chi_v3/{wandb.config.size}/train",
+        device=DEVICE,
+        dtype=DTYPE,
+    )
 
-    # train_loader = train_data.get_magnets()
-    # valid_loader = valid_data.get_magnets()
+    valid_data = AnisotropicData(
+        f"data/3dof_chi_v3/{wandb.config.size}/validation",
+        device=DEVICE,
+        dtype=DTYPE,
+    )
 
     train_loader = DataLoader(
         train_data,
@@ -67,12 +85,13 @@ def main():
         shuffle=True,
     )
 
-    model = AngleAmpCorrectionNetwork(
+    model = SphericalCorrectionNetwork(
         save_path=SAVE_PATH,
         activation=activations[wandb.config.activation],
         save_weights=True,
         p=wandb.config.p,
-    ).to(torch.float64)
+        do_output_activation=wandb.config.do_output_activation,
+    ).to(DTYPE)
 
     config["num_params"] = get_num_params(model=model)
     with open(f"{SAVE_PATH}/config.json", "w+") as f:
@@ -89,26 +108,16 @@ def main():
     train_losses, valid_losses, angle_errs, amp_errs = model.fit(
         train_loader,
         valid_loader,
-        losses[wandb.config.loss],
+        F.l1_loss,
         optimizer,
         wandb.config.epochs,
     )
-
-    learning = {
-        "train_losses": train_losses,
-        "valid_losses": valid_losses,
-        "angle_errs": angle_errs,
-        "amp_errs": amp_errs,
-    }
-
-    with open(f"{SAVE_PATH}/learning.json", "w+") as f:
-        json.dump(learning, f)
 
     plot_training(train_losses, valid_losses, angle_errs, amp_errs, save_path=SAVE_PATH)
 
     X, B = valid_data.get_magnets()
 
-    plot_histograms(X, B, model, SAVE_PATH, tag="_valid_set")
+    plot_histograms_with_baseline(X, B, model, SAVE_PATH, tag="_valid_set")
 
     X_mag, B_mag = X[1], B[1]
 

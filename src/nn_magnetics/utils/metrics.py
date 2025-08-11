@@ -92,6 +92,7 @@ def angle_error(
     arg[arg < -1] = -1
 
     errors = torch.rad2deg(torch.arccos(arg))
+    errors = torch.nan_to_num(errors, nan=180)
 
     if not is_tensor:
         errors = errors.numpy()
@@ -189,3 +190,11 @@ def vector_field_correlation(B1, B2):
     correlation = numerator / denominator
 
     return correlation
+
+
+def calculate_correct_amp_correction(B_demag: Tensor, B_reduced: Tensor) -> Tensor:
+    B_demag_norm = TLA.norm(B_demag, axis=-1)
+    B_reduced_norm = TLA.norm(B_reduced, axis=-1)
+
+    # |B_demag| = factor * |B_reduced|
+    return B_demag_norm / B_reduced_norm

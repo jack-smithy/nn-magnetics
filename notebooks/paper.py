@@ -74,7 +74,8 @@ def main():
     Bd = mesh.getB(observers)
 
     fig, ax = plotB(xx, B, Bd)
-    plt.savefig("B.pdf", format="pdf")
+    # plt.savefig("B.pdf", format="pdf")
+    plt.show()
 
 
 if __name__ == "__main__":
