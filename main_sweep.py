@@ -6,25 +6,43 @@ from torch.utils.data import DataLoader
 import torch
 import wandb
 from nn_magnetics.data import AnisotropicData
-from nn_magnetics.models import QuaternionNet
+from nn_magnetics.models import (
+    AngleAmpCorrectionNetwork,
+    QuaternionNet,
+    FieldCorrectionNetwork,
+    SphericalCorrectionNetwork,
+)
 
 DEVICE = "cpu"
+DTYPE = torch.float32
 
 sweep_config = {
     "method": "bayes",
-    "metric": {"name": "validation_loss", "goal": "minimize"},
+    "metric": {"name": "validation/loss", "goal": "minimize"},
     "parameters": {
-        "learning_rate": {"min": 0.0001, "max": 0.1},
-        "batch_size": {"min": 64, "max": 2048},
+        "learning_rate": {"values": [0.00001, 0.0001, 0.001, 0.01]},
+        "batch_size": {"values": [512, 1024, 2048, 4096, 8192]},
         "gamma": {"min": 0.9, "max": 1.0},
-        "loss": {"values": ["mse", "l1"]},
-        "activation": {"values": ["silu", "tanh"]},
+        "p": {"min": 0.0, "max": 0.2},
+        "weight_decay": {"min": 0.0, "max": 0.05},
+        "epochs": {"value": 20},
     },
 }
 
-sweep_id = wandb.sweep(sweep_config, project="3dof-chi-quaternions")
-activations = {"silu": F.silu, "tanh": F.tanh}
-losses = {"l1": F.l1_loss, "mse": F.mse_loss}
+activations = {
+    "silu": F.silu,
+    "tanh": F.tanh,
+    "gelu": F.gelu,
+    "sigmoid": F.sigmoid,
+}
+network = {
+    "euler": AngleAmpCorrectionNetwork,
+    "field": FieldCorrectionNetwork,
+    "quaternion": QuaternionNet,
+    "spherical": SphericalCorrectionNetwork,
+}
+
+sweep_id = wandb.sweep(sweep_config, project="3dof_chi_spherical")
 
 
 def train():
@@ -32,8 +50,12 @@ def train():
 
     assert wandb.run is not None
 
-    train_data = AnisotropicData("data/3dof_chi/train_fast", device=DEVICE)
-    valid_data = AnisotropicData("data/3dof_chi/validation_fast", device=DEVICE)
+    train_data = AnisotropicData(
+        "data/3dof_chi_v2/train_fast", device=DEVICE, dtype=DTYPE
+    )
+    valid_data = AnisotropicData(
+        "data/3dof_chi_v2/validation_fast", device=DEVICE, dtype=DTYPE
+    )
 
     train_loader = DataLoader(
         train_data,
@@ -46,15 +68,12 @@ def train():
         shuffle=False,
     )
 
-    model = QuaternionNet(
-        in_features=8,
-        hidden_dim_factor=6,
-        activation=activations[wandb.config.activation],
+    model = SphericalCorrectionNetwork(
+        activation=F.silu,
         save_weights=False,
-        do_output_activation=False,
-    ).to(torch.float64)
-
-    loss = losses[wandb.config.loss]
+        save_path=None,
+        p=wandb.config.p,
+    ).to(DTYPE)
 
     optimizer = Adam(
         params=model.parameters(),
@@ -64,11 +83,11 @@ def train():
     model.lr_scheduler = ExponentialLR(optimizer=optimizer, gamma=wandb.config.gamma)
 
     _ = model.fit(
-        train_loader,
-        valid_loader,
-        loss,
-        optimizer,
-        15,
+        train_loader=train_loader,
+        valid_loader=valid_loader,
+        criterion=F.l1_loss,
+        optimizer=optimizer,
+        epochs=wandb.config.epochs,
     )
 
     wandb.finish()
@@ -76,11 +95,11 @@ def train():
 
 if __name__ == "__main__":
     # wandb.agent(
-    #     "zgwihfd6",
+    #     "cepvj27b",
     #     function=train,
     #     count=100,
     #     entity="jack-smithy-university-of-vienna",
-    #     project="3dof-chi-quaternions",
+    #     project="3dof_chi_v2_large",
     # )
 
     wandb.agent(sweep_id=sweep_id, function=train)

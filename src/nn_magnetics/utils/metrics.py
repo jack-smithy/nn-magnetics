@@ -92,6 +92,7 @@ def angle_error(
     arg[arg < -1] = -1
 
     errors = torch.rad2deg(torch.arccos(arg))
+    errors = torch.nan_to_num(errors, nan=180)
 
     if not is_tensor:
         errors = errors.numpy()
@@ -116,11 +117,10 @@ def calculate_metrics_trained(
     model,
     return_abs: bool = True,
 ) -> Tuple[Tensor, Tensor]:
-    B_demag, B_reduced = B[..., :3], B[..., 3:]
+    B_demag = B[..., :3]
 
     with torch.no_grad():
-        predictions = model(X)
-        B_corrected = model.correct_ansatz(B_reduced, predictions)
+        B_corrected = model(X)
 
     angle_errors = angle_error(B_demag, B_corrected)
     amp_errors = relative_amplitude_error(B_demag, B_corrected, return_abs)
@@ -143,3 +143,58 @@ def calculate_metrics_trained_gnn(
     amp_errors = relative_amplitude_error(B_demag, B_corrected, return_abs)
 
     return angle_errors, amp_errors
+
+
+def vector_field_correlation(B1, B2):
+    """
+    Calculate vector correlation between vector fields B1 and B2 according to:
+                     Σ B1,i · B2,i
+    CV_vec = -------------------------------
+             (Σ |B1,i|² · Σ |B2,i|²)^(1/2)
+
+    Args:
+        B1 (torch.Tensor): First vector field with shape (N, 3)
+        B2 (torch.Tensor): Second vector field with shape (N, 3)
+
+    Returns:
+        torch.Tensor: Scalar correlation value
+    """
+    # Check if shapes match and are of the expected form
+    if B1.shape != B2.shape:
+        raise ValueError(
+            f"Input vector fields must have the same shape. Got {B1.shape} and {B2.shape}"
+        )
+
+    if B1.shape[1] != 3:
+        raise ValueError(f"Expected vector fields with shape (N, 3), got {B1.shape}")
+
+    # Calculate dot product at each point
+    # (B1 * B2).sum(dim=1) gives the dot product for each point
+    point_dot_products = torch.sum(B1 * B2, dim=1)
+
+    # Sum all dot products for the numerator
+    numerator = torch.sum(point_dot_products)
+
+    # Calculate the squared magnitudes at each point
+    B1_squared_magnitudes = torch.sum(B1 * B1, dim=1)
+    B2_squared_magnitudes = torch.sum(B2 * B2, dim=1)
+
+    # Sum the squared magnitudes
+    sum_B1_squared = torch.sum(B1_squared_magnitudes)
+    sum_B2_squared = torch.sum(B2_squared_magnitudes)
+
+    # Calculate denominator: sqrt of product of sum of squared magnitudes
+    denominator = torch.sqrt(sum_B1_squared * sum_B2_squared)
+
+    # Calculate correlation coefficient
+    correlation = numerator / denominator
+
+    return correlation
+
+
+def calculate_correct_amp_correction(B_demag: Tensor, B_reduced: Tensor) -> Tensor:
+    B_demag_norm = TLA.norm(B_demag, axis=-1)
+    B_reduced_norm = TLA.norm(B_reduced, axis=-1)
+
+    # |B_demag| = factor * |B_reduced|
+    return B_demag_norm / B_reduced_norm

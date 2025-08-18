@@ -1,6 +1,6 @@
 import numpy as np
+
 from nn_magnetics.data.create_data import simulate_demag
-from wakepy import keep
 
 
 def simulate_task(index):
@@ -17,15 +17,14 @@ def simulate_task(index):
         a, b = b, a
 
     print(f"Starting simuation: {index+1}")
-    data = simulate_demag(a, b, chi, calculate_edge_index=True)
-    path = f"data/3dof_chi_graph/train/data_{index+1}.npz"
+    data = simulate_demag(a, b, chi)
+    path = f"data/3dof_chi_v3/large/test/data_{index+1}.npz"
     np.savez(path, **data)
 
 
 def main():
-    with keep.running():
-        for idx in range(200):
-            simulate_task(idx)
+    for idx in range(400):
+        simulate_task(idx)
 
 
 if __name__ == "__main__":
