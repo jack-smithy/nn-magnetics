@@ -6,9 +6,8 @@ from nn_magnetics.models import FieldCorrectionNetwork, SphericalCorrectionNetwo
 import matplotlib.pyplot as plt
 from nn_magnetics.optimize.fit_lbfgs import (
     build_model,
-    optimize_positions,
-    optimize_positions_ana,
 )
+from nn_magnetics.optimize.other import optimize_positions, optimize_positions_ana
 
 
 plt.rcParams.update(

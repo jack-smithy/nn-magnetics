@@ -2,8 +2,10 @@ import torch
 
 from nn_magnetics.data import AnisotropicData
 from nn_magnetics.models import SphericalCorrectionNetwork, FieldCorrectionNetwork
-from nn_magnetics.optimize.fit_lbfgs import optimize, build_model
+from nn_magnetics.optimize.fit_lbfgs import build_model
 from tqdm import tqdm
+
+from nn_magnetics.optimize.other import optimize
 
 COMPONENT_WEIGHTS_PATH = "/Users/jacksmith/Documents/work/nn-magnetics/results/paper_v2/component/best_weights.pt"
 SPHERICAL_WEIGHTS_PATH = "/Users/jacksmith/Documents/work/nn-magnetics/results/paper_v2/spherical/best_weights.pt"

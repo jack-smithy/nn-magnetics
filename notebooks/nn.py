@@ -62,10 +62,10 @@ pl.add_arrows(
 )
 
 # Add transparent coordinate planes
-plane_opacity = 0.3
+plane_opacity = 0.25
 plane_resolution = (10, 10)
 plane_size = 0.03  # Half-width of the plane in each direction
-colours = ["lightblue", "lightgreen", "lightcoral"]
+colours = ["lightblue", "lightgreen", "lightcoral", "black"]
 
 # XY plane at z=0
 xy_plane = pv.Plane(
@@ -104,6 +104,8 @@ axis_length = plane_size
 
 r = 0.01 + offset / 2
 width = 4
+point_size = 12
+point_opacity = 1
 
 # X axis (red)
 pl.add_lines(
@@ -112,10 +114,27 @@ pl.add_lines(
     width=width,
 )
 
+pl.add_points(
+    np.array([r, 0, r]),
+    render_points_as_spheres=True,
+    point_size=point_size,
+    color=colours[3],
+    opacity=point_opacity,
+)
+
+
 pl.add_lines(
     np.array([[r, -r, r], [-r, -r, r]]),
     color=colours[1],
     width=width,
+)
+
+pl.add_points(
+    np.array([0, -r, r]),
+    render_points_as_spheres=True,
+    point_size=point_size,
+    color=colours[3],
+    opacity=point_opacity,
 )
 
 pl.add_lines(
@@ -125,40 +144,34 @@ pl.add_lines(
 )
 
 pl.add_points(
-    np.array([r, 0, r]),
-    render_points_as_spheres=True,
-    point_size=20,
-    color="black",
-    opacity=0.5,
-)
-
-pl.add_points(
-    np.array([r, 0, r]),
-    render_points_as_spheres=True,
-    point_size=20,
-    color="black",
-    opacity=0.5,
-)
-
-pl.add_points(
-    np.array([0, -r, r]),
-    render_points_as_spheres=True,
-    point_size=20,
-    color="black",
-    opacity=0.5,
-)
-
-pl.add_points(
     np.array([r, -r, 0]),
     render_points_as_spheres=True,
-    point_size=20,
+    point_size=point_size,
+    color=colours[3],
+    opacity=point_opacity,
+)
+
+pl.add_lines(
+    np.array([[0, 0, -0.03], [0, 0, 0.03]]),
     color="black",
-    opacity=0.5,
+    width=width,
+)
+
+pl.add_lines(
+    np.array([[0, -0.03, 0], [0, 0.03, 0]]),
+    color="black",
+    width=width,
+)
+
+pl.add_lines(
+    np.array([[-0.03, 0, 0], [0.03, 0, 0]]),
+    color="black",
+    width=width,
 )
 
 # Show scene
 
 # # Prepare and show scene
-pl.camera.position = (0.09, 0.02, 0.02)
+pl.camera.position = (0.1, 0.02, 0.02)
 pl.show()
-pl.screenshot("field_symmetry.png", return_img=False)
+pl.screenshot("field_symmetry_v4.png", return_img=False)
