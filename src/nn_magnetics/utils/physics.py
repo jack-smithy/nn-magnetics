@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 from torch import Tensor
-import torch.linalg as TLA
 
 
 def Dz_cuboid(dimensions: Tensor) -> Tensor:

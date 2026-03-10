@@ -5,6 +5,8 @@ from nn_magnetics.models.networks import (
     AdditionCorrectionNetwork,
     SphericalCorrectionNetwork,
     QuaternionNet,
+    NoCorrectionNetwork,
+    AnalyticalModel,
 )
 from nn_magnetics.models.utils import get_num_params
 

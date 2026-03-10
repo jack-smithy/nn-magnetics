@@ -2,7 +2,7 @@ import magpylib
 from magpylib_material_response import meshing, demag
 import torch
 from torch import Tensor
-from nn_magnetics.data.create_data import generate_points_grid, generate_points_random
+from nn_magnetics.data.create_data import generate_points_grid
 
 
 def get_mock_measurements(

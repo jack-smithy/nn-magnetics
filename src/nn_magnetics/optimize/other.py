@@ -4,7 +4,8 @@ from nn_magnetics.models.base import BaseNetwork
 from torchmin import minimize
 from nn_magnetics.optimize.fit_lbfgs import B_full_domain
 from nn_magnetics.utils.physics import Bfield_homogeneous
-
+from magpylib_material_response import meshing, demag
+from magpylib import magnet
 
 import torch
 from torch import Tensor
@@ -92,6 +93,54 @@ def _calc_loss(
     loss = F.l1_loss(B_measured, B_predicted)
 
     return loss
+
+
+def optimize_isotropic(
+    model: BaseNetwork,
+    observers: Tensor,
+    B_measured: Tensor,
+    dimensions: Tensor,
+    method: str,
+    options: dict | None,
+    n_iter: int = 10,
+    x0: Tensor | None = None,
+) -> tuple[Tensor, float]:
+    def objective(susc):
+        loss = _calc_loss(
+            model=model,
+            B_measured=B_measured,
+            observers=observers,
+            susceptibility=torch.tile(susc, (3,)),
+            dimension=dimensions,
+        )
+
+        return loss
+
+    best_loss = torch.inf
+    best_params = None
+
+    for _ in range(n_iter):
+        if x0 is None:
+            x0 = torch.rand(1, dtype=torch.float64, requires_grad=True)
+
+        result = minimize(
+            objective,
+            x0=x0,
+            method=method,
+            options=options,
+        )
+
+        params = result.x
+        loss = result.fun
+
+        if loss < best_loss:
+            best_params = params
+            best_loss = loss
+
+    if best_params is None:
+        raise RuntimeError("No runs converged")
+
+    return best_params, best_loss
 
 
 def optimize(

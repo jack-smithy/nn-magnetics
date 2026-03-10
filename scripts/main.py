@@ -12,12 +12,8 @@ from torch.utils.data import DataLoader
 import wandb
 from nn_magnetics.data import AnisotropicData
 from nn_magnetics.models import (
-    AngleAmpCorrectionNetwork,
-    BaseNetwork,
-    FieldCorrectionNetwork,
-    QuaternionNet,
-    AdditionCorrectionNetwork,
     SphericalCorrectionNetwork,
+    NoCorrectionNetwork,
     get_num_params,
 )
 
@@ -35,7 +31,7 @@ SAVE_PATH = Path(f"results/{PROJECT}/{str(datetime.datetime.now())}")
 config = {
     "epochs": 50,
     "batch_size": 2048,
-    "learning_rate": 0.001,
+    "learning_rate": 0.01,
     "gamma": 0.95,
     "weight_decay": 0,
     "p": 0.00,
@@ -43,7 +39,7 @@ config = {
     "activation": "gelu",
     "loss": "l1",
     "network": "spherical",
-    "size": "large",
+    "size": "medium",
 }
 
 losses = {"l1": F.l1_loss, "mse": F.mse_loss}
@@ -54,6 +50,25 @@ activations = {
     "gelu": F.gelu,
     "sigmoid": F.sigmoid,
 }
+
+
+def r2_score_global(y_true, y_pred):
+    y_true = y_true.reshape(-1)
+    y_pred = y_pred.reshape(-1)
+    ss_res = torch.sum((y_true - y_pred) ** 2)
+    ss_tot = torch.sum((y_true - torch.mean(y_true)) ** 2)
+    return 1 - ss_res / ss_tot
+
+
+def get_r2(model, X, B):
+    print(X.shape, B.shape)
+    X = X.reshape((-1, 8))
+    B = B.reshape((-1, 6))[:, :3]
+    B_pred = model(X)
+
+    print(X.shape, B.shape, B_pred.shape)
+    r2 = r2_score_global(B, B_pred)
+    return r2
 
 
 def main():
@@ -85,7 +100,7 @@ def main():
         shuffle=True,
     )
 
-    model = SphericalCorrectionNetwork(
+    model = NoCorrectionNetwork(
         save_path=SAVE_PATH,
         activation=activations[wandb.config.activation],
         save_weights=True,
@@ -122,6 +137,9 @@ def main():
     X_mag, B_mag = X[1], B[1]
 
     plot_heatmaps(model, X_mag, B_mag, SAVE_PATH, tag=f"{1}")
+
+    r2_score = get_r2(model, X, B)
+    print(r2_score)
 
     wandb.finish()
 

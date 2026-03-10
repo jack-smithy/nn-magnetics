@@ -18,6 +18,8 @@ pl = pv.Plotter()
 magpy.show(magnet, canvas=pl, units_length="m", backend="pyvista")
 offset = 0.005
 
+pl.remove_legend(pl)
+
 start_points = np.array(
     [
         [0.01, 0.01, 0.01],
@@ -174,4 +176,4 @@ pl.add_lines(
 # # Prepare and show scene
 pl.camera.position = (0.1, 0.02, 0.02)
 pl.show()
-pl.screenshot("field_symmetry_v4.png", return_img=False)
+pl.screenshot("B-field_symmetry.png", return_img=False)

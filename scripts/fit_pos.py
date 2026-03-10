@@ -2,7 +2,7 @@ import torch
 from tqdm import tqdm
 import numpy as np
 from nn_magnetics.data import AnisotropicData
-from nn_magnetics.models import FieldCorrectionNetwork, SphericalCorrectionNetwork
+from nn_magnetics.models import SphericalCorrectionNetwork
 import matplotlib.pyplot as plt
 from nn_magnetics.optimize.fit_lbfgs import (
     build_model,

@@ -7,7 +7,7 @@ from magpylib_material_response.demag import apply_demag
 from magpylib_material_response.meshing import mesh_Cuboid
 from matplotlib import colors
 from matplotlib.colors import LinearSegmentedColormap
-from pyvista import cartesian_to_spherical, spherical_to_cartesian
+from pyvista import cartesian_to_spherical
 
 # changing all fonts
 plt.rcParams.update(

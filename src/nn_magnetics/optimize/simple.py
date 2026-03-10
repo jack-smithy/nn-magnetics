@@ -1,8 +1,8 @@
-from nn_magnetics.utils.physics import Bfield_homogeneous
-from nn_magnetics.data.create_data import generate_points_grid, generate_points_random
-from magpylib import magnet
-from magpylib_material_response import meshing, demag
 import torch
+from magpylib import magnet
+
+from nn_magnetics.data.create_data import generate_points_random
+from nn_magnetics.utils.physics import Bfield_homogeneous
 
 
 def vector_field_correlation(B1, B2):

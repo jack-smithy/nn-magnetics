@@ -123,20 +123,20 @@ def plot_training(
     n_epochs = len(train_loss)
 
     ax[0].set_xlim((0, n_epochs - 1))
-    ax[0].plot(train_loss, label="Train")
-    ax[0].plot(validation_loss, label="Test")
+    ax[0].semilogy(train_loss, label="Train")
+    ax[0].semilogy(validation_loss, label="Test")
     ax[0].legend()
     ax[0].set_ylabel("Loss")
     if baselines is not None:
         ax[0].hlines(baselines[0], 0, n_epochs, colors="black", linestyles="dashed")
 
-    ax[1].plot(angle_error, label="Angle error")
+    ax[1].semilogy(angle_error, label="Angle error")
     ax[1].set_ylabel("Angle Error (°)")
     # ax[1].set_ylim(bottom=0, top=max(angle_error) + 0.1)
     if baselines is not None:
         ax[1].hlines(baselines[1], 0, n_epochs, colors="black", linestyles="dashed")
 
-    ax[2].plot(amplitude_error, label="Amplitude error")
+    ax[2].semilogy(amplitude_error, label="Amplitude error")
     ax[2].set_ylabel("Relative Amplitude Error (%)")
     # ax[2].set_ylim(bottom=0, top=max(amplitude_error) + 0.1)
     if baselines is not None:
@@ -302,15 +302,15 @@ def plot_histograms_with_baseline(X, B, model, save_path, figsize=(8, 8), tag=""
 
     for Bi in B:
         angle_error, amp_error = calculate_metrics_baseline(Bi)
-        angle_errors_baseline.append(torch.max(angle_error))
-        amplitude_errors_baseline.append(torch.max(amp_error))
+        angle_errors_baseline.append(torch.mean(angle_error))
+        amplitude_errors_baseline.append(torch.mean(amp_error))
 
     angle_errors, amplitude_errors = [], []
 
     for Xi, Bi in zip(X, B):
         angle_error, amp_error = calculate_metrics_trained(Xi, Bi, model)
-        angle_errors.append(torch.nan_to_num(torch.max(angle_error), nan=180.0))
-        amplitude_errors.append(torch.max(amp_error))
+        angle_errors.append(torch.nan_to_num(torch.mean(angle_error), nan=180.0))
+        amplitude_errors.append(torch.mean(amp_error))
 
     mean_angle_baseline = round(float(np.mean(angle_errors_baseline)), 4)
     mean_amp_baseline = round(float(np.mean(amplitude_errors_baseline)), 4)

@@ -217,11 +217,12 @@ def optimize_positions_joystick(
     dimensions: Tensor,
     r: float,
     d: float,
+    maxiter=None,
+    options=None,
 ) -> tuple[Tensor, float]:
     B_measured = B_measured.unsqueeze(0)
 
     def objective(theta: Tensor):
-        # assert observers.requires_grad
         B_pred = joystick_v2(
             theta=theta,
             r=r,
@@ -235,13 +236,14 @@ def optimize_positions_joystick(
 
         return loss
 
-    #     return loss.item()
-
-    # bounds = [(0, np.pi / 12)]
-    # result = differential_evolution(objective, bounds=bounds, maxiter=10)
-
     x0 = torch.tensor([0.1], dtype=torch.float64)
-    result = minimize(objective, x0, "l-bfgs")
+    result = minimize(
+        objective,
+        x0,
+        "l-bfgs",
+        max_iter=maxiter,
+        options=options,
+    )
 
     return result.x, result.fun
 

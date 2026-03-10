@@ -1,5 +1,4 @@
 import copy
-import sys
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -7,7 +6,6 @@ import torch.nn as nn
 from torch.optim.adam import Adam
 import tqdm
 from sklearn.model_selection import train_test_split
-from metrics import relative_amplitude_error, angle_error
 
 
 def calculation(data_range, mode):

@@ -16,8 +16,116 @@ from nn_magnetics.utils.physics import (
     cartesian_to_spherical,
     spherical_to_cartesian,
 )
+from nn_magnetics.utils.physics import Bfield_homogeneous
 
 type Activation = Callable[[torch.Tensor], torch.Tensor]
+
+
+class AnalyticalModel(BaseNetwork):
+    def __init__(
+        self,
+        do_output_activation: bool,
+        save_path: Path | None = None,
+        lr_scheduler: LRScheduler | None = None,
+        activation: Callable[[Tensor], Tensor] = F.silu,
+        p: float = 0,
+        save_weights: bool = True,
+    ) -> None:
+        super().__init__(
+            in_features=8,
+            out_features=3,
+            do_output_activation=do_output_activation,
+            save_path=save_path,
+            lr_scheduler=lr_scheduler,
+            activation=activation,
+            p=p,
+            save_weights=save_weights,
+        )
+
+    def correct_ansatz(self, B_reduced: Tensor, prediction: Tensor) -> Tensor:
+        return B_reduced
+
+    def forward(self, x: Tensor) -> Tensor:
+        observers, dimensions, polarizations, susceptibilities = self._prepare_inputs(x)
+
+        B_reduced = Bfield_homogeneous(
+            observers=observers,
+            dimensions=dimensions,
+            polarizations=polarizations,
+        )
+
+        return B_reduced
+
+    @classmethod
+    def load_from_path(
+        cls,
+        path,
+        *,
+        save_path: Path | None = None,
+        lr_scheduler: LRScheduler | None = None,
+        activation: Callable[[Tensor], Tensor] = F.silu,
+        do_output_activation: bool = False,
+        p: float = 0.2,
+        save_weights: bool = True,
+    ) -> AnalyticalModel:
+        model = AnalyticalModel(
+            activation=activation,
+            save_weights=save_weights,
+            save_path=save_path,
+            do_output_activation=do_output_activation,
+            lr_scheduler=lr_scheduler,
+            p=p,
+        )
+        model.load_state_dict(torch.load(path, weights_only=True))
+        return model
+
+
+class NoCorrectionNetwork(BaseNetwork):
+    def __init__(
+        self,
+        do_output_activation: bool,
+        save_path: Path | None = None,
+        lr_scheduler: LRScheduler | None = None,
+        activation: Callable[[Tensor], Tensor] = F.silu,
+        p: float = 0,
+        save_weights: bool = True,
+    ) -> None:
+        super().__init__(
+            in_features=8,
+            out_features=3,
+            do_output_activation=do_output_activation,
+            save_path=save_path,
+            lr_scheduler=lr_scheduler,
+            activation=activation,
+            p=p,
+            save_weights=save_weights,
+        )
+
+    def correct_ansatz(self, B_reduced: Tensor, prediction: Tensor) -> Tensor:
+        return prediction
+
+    @classmethod
+    def load_from_path(
+        cls,
+        path,
+        *,
+        save_path: Path | None = None,
+        lr_scheduler: LRScheduler | None = None,
+        activation: Callable[[Tensor], Tensor] = F.silu,
+        do_output_activation: bool = False,
+        p: float = 0.2,
+        save_weights: bool = True,
+    ) -> NoCorrectionNetwork:
+        model = NoCorrectionNetwork(
+            activation=activation,
+            save_weights=save_weights,
+            save_path=save_path,
+            do_output_activation=do_output_activation,
+            lr_scheduler=lr_scheduler,
+            p=p,
+        )
+        model.load_state_dict(torch.load(path, weights_only=True))
+        return model
 
 
 class SphericalCorrectionNetwork(BaseNetwork):
@@ -42,7 +150,6 @@ class SphericalCorrectionNetwork(BaseNetwork):
         )
 
     def correct_ansatz(self, B_reduced, prediction):
-        eps = 1e-5
         r, theta, phi = cartesian_to_spherical(B_reduced).T
 
         r_corrected = r * prediction[:, 0]

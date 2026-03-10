@@ -2,7 +2,6 @@ from pathlib import Path
 from time import perf_counter
 
 import matplotlib.pyplot as plt
-import numpy as np
 import torch
 from magpylib import magnet
 from magpylib_material_response import demag, meshing
@@ -26,29 +25,29 @@ plt.rcParams.update(
 )
 
 labels = ["Component", "Euler", "Quaternion"]
-colors_ = ["#784c99", "#6780be", "#e93ea5"]
-markers = ["v", "o", "*"]
+colors_ = ["#784c99", "#6780be", "#e93ea5", "#650303"]
+markers = ["v", "o", "*", "+"]
 
 DATA_PATH = "./data/3dof_chi_v3/small/validation"
 WEIGHTS_PATH = "/Users/jacksmith/Documents/work/nn-magnetics/results/3dof_chi_spherical/2025-05-13 16:36:35.129285"
-N_REPEATS = 1
+N_REPEATS = 5
 BATCH_SIZES = [
     1,
     2,
     4,
-    # 8,
-    # 16,
-    # 32,
-    # 64,
-    # 128,
-    # 256,
-    # 512,
-    # 1024,
-    # 2048,
-    # 4096,
-    # 16834,
-    # 65536,
-    # 262144,
+    8,
+    16,
+    32,
+    64,
+    128,
+    256,
+    512,
+    1024,
+    2048,
+    4096,
+    16834,
+    65536,
+    262144,
 ]
 
 
@@ -60,7 +59,7 @@ def time_analytical(x, n_samples, n_repeats, dimensions):
     total_time = 0
     for _ in range(n_repeats):
         start = perf_counter()
-        _ = Bfield_homogeneous(
+        Bfield_homogeneous(
             observers=observers,
             dimensions=dimensions,
             polarizations=polarizations,
@@ -78,13 +77,27 @@ def time_demag(x, mesh, n_samples, n_repeats, susceptibility):
     total_time = 0
     for _ in range(n_repeats):
         start = perf_counter()
-        demag.apply_demag(
+        _mesh = demag.apply_demag(
             mesh,
             susceptibility=susceptibility,
-            inplace=True,
+            inplace=False,
             min_log_time=10,
         )
-        _ = mesh.getB(observers)
+        _mesh.getB(observers)  # type: ignore
+        end = perf_counter()
+
+        total_time += end - start
+
+    return total_time / n_repeats
+
+
+def time_mesh(x, mesh, n_samples, n_repeats):
+    observers = x[:n_samples, 5:].numpy()
+
+    total_time = 0
+    for _ in range(n_repeats):
+        start = perf_counter()
+        mesh.getB(observers)
         end = perf_counter()
 
         total_time += end - start
@@ -98,7 +111,7 @@ def time_nn(x, model, n_samples, n_repeats):
     total_time = 0
     for _ in range(n_repeats):
         start = perf_counter()
-        _ = model(observers)
+        model(observers)
         end = perf_counter()
 
         total_time += end - start
@@ -106,7 +119,7 @@ def time_nn(x, model, n_samples, n_repeats):
     return total_time / n_repeats
 
 
-def plot_times(batch_sizes, times_ana, times_demag, times_nn):
+def plot_times(batch_sizes, times_ana, times_demag, times_nn, times_mesh):
     assert len(times_ana) == len(times_demag) == len(times_nn)
 
     fig, ax = plt.subplots(figsize=(6, 4))
@@ -118,7 +131,7 @@ def plot_times(batch_sizes, times_ana, times_demag, times_nn):
         color=colors_[1],
         marker=markers[1],
     )
-    ax.annotate("Magnetostatic MoM", xy=(3e1, 5e-1))
+    # ax.annotate("Magnetostatic MoM", xy=(3e1, 5e-1))
 
     ax.plot(
         batch_sizes,
@@ -127,7 +140,7 @@ def plot_times(batch_sizes, times_ana, times_demag, times_nn):
         color=colors_[0],
         marker=markers[0],
     )
-    ax.annotate("Analytical Solution", xy=(3e3, 4e-4))
+    # ax.annotate("Analytical Solution", xy=(3e3, 4e-4))
 
     ax.plot(
         batch_sizes,
@@ -136,8 +149,17 @@ def plot_times(batch_sizes, times_ana, times_demag, times_nn):
         color=colors_[2],
         marker=markers[2],
     )
-    ax.annotate("NN Solution", xy=(3e1, 1.2e-3))
+    # ax.annotate("NN Solution", xy=(3e1, 1.2e-3))
 
+    ax.plot(
+        batch_sizes,
+        times_mesh,
+        label="FFT*",
+        color=colors_[3],
+        marker=markers[3],
+    )
+    # ax.annotate("mesh Solution", xy=(3e1, 1.2e-3))
+    ax.legend()
     ax.set_yscale("log")
     ax.set_xscale("log")
     ax.set_xlabel("Batch Size")
@@ -176,6 +198,8 @@ def main():
         do_output_activation=False,
     )
 
+    _ = model(X[0])
+
     print("\n" + "=" * 10 + " Analytical Calculation " + "=" * 10)
     times_analytical = [
         time_analytical(
@@ -183,6 +207,16 @@ def main():
             n_samples=b,
             n_repeats=N_REPEATS,
             dimensions=[a, b, 1],
+        )
+        for b in bar(BATCH_SIZES)
+    ]
+    print("\n" + "=" * 10 + " Analytical Calculation on Mesh " + "=" * 10)
+    times_mesh = [
+        time_mesh(
+            x=x,
+            mesh=mesh,
+            n_samples=b,
+            n_repeats=N_REPEATS,
         )
         for b in bar(BATCH_SIZES)
     ]
@@ -218,11 +252,13 @@ def main():
         "times_ana": times_analytical,
     }
 
-    with open("notebooks/runtimes/data.json", "w+") as f:
-        json.dump(data, f)
+    # with open("notebooks/runtimes/data.json", "w+") as f:
+    #     json.dump(data, f)
 
-    fig, ax = plot_times(BATCH_SIZES, times_analytical, times_demag, times_nn)
-    plt.savefig("notebooks/runtimes/runtimes_v1.pdf")
+    fig, ax = plot_times(
+        BATCH_SIZES, times_analytical, times_demag, times_nn, times_mesh
+    )
+    # plt.savefig("notebooks/runtimes/runtimes_non_compiled.pdf")
     plt.show()
 
 
